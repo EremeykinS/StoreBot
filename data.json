@@ -1,0 +1,86 @@
+{
+    "канцтовары": {
+        "бумага": [
+            {
+                "stock": 40,
+                "img": "123123",
+                "description": "лист формата А1",
+                "price": 14
+            },
+            {
+                "stock": 61,
+                "img": "12ыв3",
+                "description": "лист формата А2",
+                "price": 8
+            },
+            {
+                "stock": 84,
+                "img": "12sdыв3",
+                "description": "лист формата А3",
+                "price": 4
+            },
+            {
+                "stock": 1254,
+                "img": "12sddasыв3",
+                "description": "лист формата А4",
+                "price": 2
+            }
+        ],
+        "другое": [
+            {
+                "stock": 45,
+                "img": "18asыв3",
+                "description": "ручка обычная",
+                "price": 2
+            },
+            {
+                "stock": 6,
+                "img": "18asй3",
+                "description": "ручка Илитная",
+                "price": 222
+            }
+        ]
+    },
+    "техника": {
+        "электроника": [
+            {
+                "stock": 4,
+                "img": "zx2134",
+                "description": "ноутбук Apple",
+                "price": 98000
+            },
+            {
+                "stock": 14,
+                "img": "zx18c3",
+                "description": "ноутбук HP",
+                "price": 68000
+            },
+            {
+                "stock": 2,
+                "img": "z2x12c12",
+                "description": "Asus Zenfone 2 Lazer ZE500KL 32Gb",
+                "price": 10400
+            }
+        ],
+        "другое": [
+            {
+                "stock": 1,
+                "img": "AgADAgADsKcxGyxIYw4X32kD8a1qlm7pgQ0ABJK-g33nE0X9QNEBAAEC",
+                "description": "непонятное барахло",
+                "price": 12
+            },
+            {
+                "stock": 2,
+                "img": "AgADAgADr6cxGyxIYw5oN2_-zF3n2toySw0ABOJFXr2C_-UpziABAAEC",
+                "description": "гитара",
+                "price": 11200
+            },
+            {
+                "stock": 13,
+                "img": "AgADAgADrqcxGyxIYw7j2w6Rn8hu6p8JSw0ABM0EYQAB_vdmbtgUAQABAg",
+                "description": "крабовое мясо",
+                "price": 132
+            }
+        ]
+    }
+}
