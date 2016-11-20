@@ -132,6 +132,18 @@ class Cart:
                     self.sum -= product.price * self.items[product]
                     del self.items[product]
 
+    # def str_repr(self):
+    #     result = []
+    #     for i, (price, q) in enumerate(self.items.items()):
+    #         result.append(str(i+1)+". "+(texts.cart_items % (price.description, q, price.price, price.price*q)))
+    #     result.append(texts.cart_total % (sum(q for q in self.items.values()), self.sum))
+    #     return result
+
+    def str_repr(self):
+        return [str(i+1)+". "+(texts.cart_items % (price.description, q, price.price, price.price*q))
+                for i, (price, q) in enumerate(self.items.items())] + \
+               [texts.cart_total % (sum(q for q in self.items.values()), self.sum)]
+
     def __getitem__(self, item):
         return self.items[item] if item in self.items else 0
 
@@ -151,7 +163,8 @@ class Cart:
         self.delete(other)
 
     def __str__(self):
-        return "\n\n".join(str(i+1)+". "+(texts.cart_items % (p.description, q, p.price, p.price*q)) for i, (p, q) in enumerate(self.items.items())) if self else texts.empty_cart
+        return "\n\n".join(self.str_repr())
+        # return "\n\n".join(str(i+1)+". "+(texts.cart_items % (p.description, q, p.price, p.price*q)) for i, (p, q) in enumerate(self.items.items())) if self else texts.empty_cart
 
 
 # constant for sending 'typing...'
@@ -231,7 +244,7 @@ def simple_answer(text, keyboard=None, inlinekeyboard=None, next_state=None):
             uid = update.message.from_user.id
             bot.sendChatAction(uid, action=typing)
             bot.sendMessage(uid, text=text, parse_mode="HTML", reply_markup=kbd(keyboard))
-            print("going to next_state = " + str(next_state))
+            # print("going to next_state = " + str(next_state))
             return next_state
     elif inlinekeyboard:
         def answer_function(bot, update):
@@ -239,14 +252,14 @@ def simple_answer(text, keyboard=None, inlinekeyboard=None, next_state=None):
             bot.sendChatAction(uid, action=typing)
             bot.sendMessage(uid, text=text, parse_mode="HTML",
                             reply_markup=telegram.InlineKeyboardMarkup(inlinekeyboard))
-            print("going to next_state = " + str(next_state))
+            # print("going to next_state = " + str(next_state))
             return next_state
     else:
         def answer_function(bot, update):
             uid = update.message.from_user.id
             bot.sendChatAction(uid, action=typing)
             bot.sendMessage(uid, text=text, parse_mode="HTML")
-            print("going to next_state = " + str(next_state))
+            # print("going to next_state = " + str(next_state))
             return next_state
     return answer_function
 
@@ -321,7 +334,9 @@ def catalog_item(bot, update, user_data=None, text=None, inlinekeyboard=None, ne
 
 def cart_user(bot, update, user_data):
     simple_answer(text=texts.cart_welcome)(bot, update)
-    simple_answer(text=str(user_data["cart"]), keyboard=main_kbd_user)(bot, update)
+    for item in user_data["cart"].str_repr():
+        simple_answer(text=item)(bot, update)
+    # simple_answer(text=str(user_data["cart"]), keyboard=main_kbd_user)(bot, update)
     return "MAIN_MENU_U"
     # bot.sendMessage(update.message.chat_id, text=str(cart), parse_mode="HTML", reply_markup=kbd(main_kbd_user))
 
@@ -444,7 +459,7 @@ def main():
     for cat in flatten(catalog.categories_kbd):
         states["CATALOG_" + cat] = [cqh]
         for btn in flatten(catalog.subcat_kbd[cat]):
-            print(cat, btn)
+            # print(cat, btn)
             fff = lambda bot, update, user_data: catalog_item(bot, update, user_data=user_data,
                                                               text=str(catalog[str(cat)][str(btn)][0]),
                                                               inlinekeyboard=ik, subcat=catalog[cat][btn])
