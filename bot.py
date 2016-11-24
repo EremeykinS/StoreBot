@@ -267,20 +267,22 @@ def simple_answer(text, keyboard=None, inlinekeyboard=None, next_state=None):
 def start(bot, update, user_data):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
-    if 'first_name' not in user_data:
-        if uid == owner_id:
-            text = texts.welcome_admin
-            keyboard = main_kbd_admin
-        else:
-            text = texts.welcome_user
-            keyboard = send_contact_kbd
+    if uid == owner_id:
+        text = texts.welcome_admin
+        keyboard = main_kbd_admin
+        next_state = "MAIN_MENU_A"
+    else:
+        if 'first_name' not in user_data:
             user_data['first_name'] = update.message.from_user.first_name
             user_data['last_name'] = update.message.from_user.last_name
             user_data["cart"] = Cart()
-        bot.sendMessage(update.message.chat_id, text=text, parse_mode="HTML", reply_markup=kbd(keyboard))
-        return "MAIN_MENU_A" if uid == owner_id else "CHECK"
-    else:
-        bot.sendMessage(uid, text=texts.welcome_again_user, parse_mode="HTML", reply_markup=kbd(main_kbd_user))
+            text = texts.welcome_user
+        else:
+            text = texts.welcome_again_user
+        keyboard = main_kbd_user
+        next_state = "MAIN_MENU_U"
+    print('text=', text, '\tkeyboard=', keyboard, '\tnext_state=', next_state)
+    return simple_answer(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
 
 
 def main_menu_user(bot, update, user_data):
