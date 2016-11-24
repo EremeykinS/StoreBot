@@ -48,3 +48,9 @@ cart_items = "%s\nКоличество: %s\nЦена: %s\nСтоимость: %s
 cart_total = "Итого выбрано товаров: %d на сумму %.2f"
 empty_cart = "Ваша Корзина пуста, как не знаю что!"
 cart_welcome = "Содержание Вашей Корзины:"
+
+cart_item_inc1 = "+ 1"
+cart_item_dec1 = "- 1"
+cart_item_del = "удалить"
+
+cart_item_deleted = "Удалено"

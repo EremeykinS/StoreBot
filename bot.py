@@ -5,6 +5,7 @@ import logging
 import telegram
 from collections import OrderedDict  # , namedtuple
 from telegram.ext import Updater, CommandHandler, ConversationHandler, MessageHandler, RegexHandler, Filters
+from telegram import InlineKeyboardButton as ikb
 
 
 class Entity:
@@ -132,17 +133,9 @@ class Cart:
                     self.sum -= product.price * self.items[product]
                     del self.items[product]
 
-    # def str_repr(self):
-    #     result = []
-    #     for i, (price, q) in enumerate(self.items.items()):
-    #         result.append(str(i+1)+". "+(texts.cart_items % (price.description, q, price.price, price.price*q)))
-    #     result.append(texts.cart_total % (sum(q for q in self.items.values()), self.sum))
-    #     return result
-
     def str_repr(self):
-        return [str(i+1)+". "+(texts.cart_items % (price.description, q, price.price, price.price*q))
-                for i, (price, q) in enumerate(self.items.items())] + \
-               [texts.cart_total % (sum(q for q in self.items.values()), self.sum)]
+        return [str(i+1)+". "+(texts.cart_items % (p.description, q, p.price, p.price*q))
+                for i, (p, q) in enumerate(self.items.items())]
 
     def __getitem__(self, item):
         return self.items[item] if item in self.items else 0
@@ -232,10 +225,13 @@ main_kbd_admin = [[texts.orders_btn_admin, texts.edit_btn_admin],
 to_cart_kbd = [[texts.confirm_order_btn], [texts.to_cat_btn], [texts.main_menu_btn]]
 
 # inline keyboard for catalog
-from telegram import InlineKeyboardButton as ikb
 
 ik = [[ikb(texts.prev_btn, callback_data="<"), ikb(texts.next_btn, callback_data=">")],
       [ikb(texts.show_img_btn, callback_data="img")], [ikb(texts.to_cart_btn, callback_data="to_cart")]]
+
+cart_item_kbd = [[ikb(texts.cart_item_dec1, callback_data="cart-1"),
+                  ikb(texts.cart_item_del, callback_data="cart_del"),
+                  ikb(texts.cart_item_inc1, callback_data="cart+1")]]
 
 
 def simple_answer(text, keyboard=None, inlinekeyboard=None, next_state=None):
@@ -281,7 +277,6 @@ def start(bot, update, user_data):
             text = texts.welcome_again_user
         keyboard = main_kbd_user
         next_state = "MAIN_MENU_U"
-    print('text=', text, '\tkeyboard=', keyboard, '\tnext_state=', next_state)
     return simple_answer(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
 
 
@@ -335,12 +330,20 @@ def catalog_item(bot, update, user_data=None, text=None, inlinekeyboard=None, ne
 
 
 def cart_user(bot, update, user_data):
-    simple_answer(text=texts.cart_welcome)(bot, update)
-    for item in user_data["cart"].str_repr():
-        simple_answer(text=item)(bot, update)
-    # simple_answer(text=str(user_data["cart"]), keyboard=main_kbd_user)(bot, update)
+    uid = update.message.from_user.id
+    cart = user_data["cart"]
+
+    if cart:
+        simple_answer(text=texts.cart_welcome)(bot, update)
+        msgs = []
+        for item in user_data["cart"].str_repr():
+            bot.sendChatAction(uid, action=typing)
+            msgs.append(bot.sendMessage(uid, text=item, parse_mode="HTML",
+                        reply_markup=telegram.InlineKeyboardMarkup(cart_item_kbd)))
+        user_data["cart_map"] = [msg.message_id for msg in msgs]
+    else:
+        simple_answer(text=texts.empty_cart, keyboard=main_kbd_user)(bot, update)
     return "MAIN_MENU_U"
-    # bot.sendMessage(update.message.chat_id, text=str(cart), parse_mode="HTML", reply_markup=kbd(main_kbd_user))
 
 
 def orders_user(bot, update):
@@ -358,6 +361,8 @@ def info_user(bot, update):
 def inline(bot, update, user_data):
     uid = update.callback_query.from_user.id
     cqid = update.callback_query.id
+    chat_id=update.callback_query.message.chat.id
+    message_id = update.callback_query.message.message_id
     act = update.callback_query.data
     scroll = user_data["scroll"]
     cart = user_data["cart"]
@@ -366,8 +371,7 @@ def inline(bot, update, user_data):
         next_e = scroll.get_next()
         if next_e:
             bot.answerCallbackQuery(callback_query_id=cqid)
-            bot.editMessageText(text=str(next_e), chat_id=update.callback_query.message.chat.id,
-                                message_id=update.callback_query.message.message_id,
+            bot.editMessageText(text=str(next_e), chat_id=chat_id, message_id=message_id,
                                 reply_markup=telegram.InlineKeyboardMarkup(ik), parse_mode="HTML")
         else:
             bot.answerCallbackQuery(text=texts.last_item, callback_query_id=cqid)
@@ -376,16 +380,14 @@ def inline(bot, update, user_data):
         prev_e = scroll.get_prev()
         if prev_e:
             bot.answerCallbackQuery(callback_query_id=cqid)
-            bot.editMessageText(text=str(prev_e), chat_id=update.callback_query.message.chat.id,
-                                message_id=update.callback_query.message.message_id,
+            bot.editMessageText(text=str(prev_e), chat_id=chat_id, message_id=message_id,
                                 reply_markup=telegram.InlineKeyboardMarkup(ik), parse_mode="HTML")
         else:
             bot.answerCallbackQuery(text=texts.first_item, callback_query_id=cqid)
 
     elif act == 'img':
         bot.answerCallbackQuery(callback_query_id=cqid)
-        bot.sendPhoto(chat_id=update.callback_query.message.chat.id, photo=scroll.get_current().img,
-                      caption=scroll.get_current().description)
+        bot.sendPhoto(chat_id=chat_id, photo=scroll.get_current().img, caption=scroll.get_current().description)
         # TODO: send the message with scrollable list again
         # TODO: decrease "stock" value
 
@@ -398,6 +400,19 @@ def inline(bot, update, user_data):
             return "TO_CART_DONE"
         else:
             bot.answerCallbackQuery(text=texts.not_enough_in_stock, callback_query_id=cqid)
+
+    elif act == "cart_del":
+        bot.answerCallbackQuery(callback_query_id=cqid)
+        new_cart = {k: v for i, (k, v) in enumerate(cart.items.items()) if i != user_data["cart_map"].index(message_id)}
+        user_data["cart"] = Cart(new_cart)
+        bot.editMessageText(text=texts.cart_item_deleted, chat_id=chat_id, message_id=message_id,
+                            reply_markup=telegram.InlineKeyboardMarkup([]), parse_mode="HTML")
+
+    elif act == "cart-1":
+        pass
+
+    elif act == "cart+1":
+        pass
 
 
 def error(bot, update, err):
