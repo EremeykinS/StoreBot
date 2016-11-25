@@ -6,6 +6,7 @@ import telegram
 from collections import OrderedDict  # , namedtuple
 from telegram.ext import Updater, CommandHandler, ConversationHandler, MessageHandler, RegexHandler, Filters
 from telegram import InlineKeyboardButton as ikb
+from telegram import InlineKeyboardMarkup as ik
 
 
 class Entity:
@@ -143,6 +144,12 @@ class Cart:
         except TypeError:
             del self.items[key]
 
+    def __contains__(self, item):
+        try:
+            return 0 <= item < len(self.items)
+        except TypeError:
+            return item in self.items
+
     def __bool__(self):
         return bool(self.items)
 
@@ -154,9 +161,11 @@ class Cart:
 
     def __iadd__(self, other):
         self.add(other)
+        return self
 
     def __isub__(self, other):
         self.delete(other)
+        return self
 
     def __str__(self):
         return "\n\n".join(self.str_repr())
@@ -192,13 +201,15 @@ main_kbd_admin = [[texts.orders_btn_admin, texts.edit_btn_admin],
 to_cart_kbd = [[texts.confirm_order_btn], [texts.to_cat_btn], [texts.main_menu_btn]]
 
 # inline keyboard for catalog
-
-ik = [[ikb(texts.prev_btn, callback_data="<"), ikb(texts.next_btn, callback_data=">")],
-      [ikb(texts.show_img_btn, callback_data="img")], [ikb(texts.to_cart_btn, callback_data="to_cart")]]
-
-cart_item_kbd = [[ikb(texts.cart_item_dec1, callback_data="cart-1"),
-                  ikb(texts.cart_item_del, callback_data="cart_del"),
-                  ikb(texts.cart_item_inc1, callback_data="cart+1")]]
+catalog_ikbd = [[ikb(texts.prev_btn, callback_data="<"), ikb(texts.next_btn, callback_data=">")],
+                [ikb(texts.show_img_btn, callback_data="img")], [ikb(texts.to_cart_btn, callback_data="to_cart")]]
+# inline keyboard for cart
+cart_item_ikbd = [[ikb(texts.cart_item_dec1_btn, callback_data="cart-1"),
+                   ikb(texts.cart_item_del_btn, callback_data="cart_del"),
+                   ikb(texts.cart_item_inc1_btn, callback_data="cart+1")]]
+# inline keyboard for cart summary
+cart_sum_ikbd = [[ikb(texts.cart_decline_btn, callback_data="del_all"),
+                  ikb(texts.cart_confirm_btn, callback_data="confirm_all")]]
 
 
 def simple_answer(text, keyboard=None, inlinekeyboard=None, next_state=None):
@@ -214,7 +225,7 @@ def simple_answer(text, keyboard=None, inlinekeyboard=None, next_state=None):
             uid = update.message.from_user.id
             bot.sendChatAction(uid, action=typing)
             bot.sendMessage(uid, text=text, parse_mode="HTML",
-                            reply_markup=telegram.InlineKeyboardMarkup(inlinekeyboard))
+                            reply_markup=ik(inlinekeyboard))
             # print("going to next_state = " + str(next_state))
             return next_state
     else:
@@ -305,9 +316,10 @@ def cart_user(bot, update, user_data):
         msgs = []
         for item in user_data["cart"].str_repr():
             bot.sendChatAction(uid, action=typing)
-            msgs.append(bot.sendMessage(uid, text=item, parse_mode="HTML",
-                        reply_markup=telegram.InlineKeyboardMarkup(cart_item_kbd)))
+            msgs.append(bot.sendMessage(uid, text=item, parse_mode="HTML", reply_markup=ik(cart_item_ikbd)))
         user_data["cart_map"] = [msg.message_id for msg in msgs]
+        user_data["cart_sum"] = bot.sendMessage(uid, text=texts.cart_sum % (len(cart), cart.total),
+                                                reply_markup=ik(cart_sum_ikbd), parse_mode="HTML").message_id
     else:
         simple_answer(text=texts.empty_cart, keyboard=main_kbd_user)(bot, update)
     return "MAIN_MENU_U"
@@ -339,7 +351,7 @@ def inline(bot, update, user_data):
         if next_e:
             bot.answerCallbackQuery(callback_query_id=cqid)
             bot.editMessageText(text=str(next_e), chat_id=chat_id, message_id=message_id,
-                                reply_markup=telegram.InlineKeyboardMarkup(ik), parse_mode="HTML")
+                                reply_markup=ik(catalog_ikbd), parse_mode="HTML")
         else:
             bot.answerCallbackQuery(text=texts.last_item, callback_query_id=cqid)
 
@@ -348,7 +360,7 @@ def inline(bot, update, user_data):
         if prev_e:
             bot.answerCallbackQuery(callback_query_id=cqid)
             bot.editMessageText(text=str(prev_e), chat_id=chat_id, message_id=message_id,
-                                reply_markup=telegram.InlineKeyboardMarkup(ik), parse_mode="HTML")
+                                reply_markup=ik(catalog_ikbd), parse_mode="HTML")
         else:
             bot.answerCallbackQuery(text=texts.first_item, callback_query_id=cqid)
 
@@ -375,12 +387,28 @@ def inline(bot, update, user_data):
         del cart[dn]
         user_data["cart"] = cart
         bot.editMessageText(text=texts.cart_item_deleted, chat_id=chat_id, message_id=message_id,
-                            reply_markup=telegram.InlineKeyboardMarkup([]), parse_mode="HTML")
+                            reply_markup=ik([]), parse_mode="HTML")
 
     elif act == "cart-1":
         pass
 
     elif act == "cart+1":
+        index = user_data["cart_map"].index(message_id)
+        add_item = cart[index]
+        if cart[add_item] + 1 <= add_item.stock:
+            cart += add_item
+            bot.editMessageText(text=cart.str_repr()[index], chat_id=chat_id, message_id=message_id,
+                                reply_markup=ik(cart_item_ikbd), parse_mode="HTML")
+            bot.editMessageText(text=texts.cart_sum % (len(cart), cart.total), chat_id=chat_id, message_id=user_data["cart_sum"],
+                                reply_markup=ik(cart_sum_ikbd), parse_mode="HTML")
+            bot.answerCallbackQuery(callback_query_id=cqid)
+        else:
+            bot.answerCallbackQuery(text=texts.not_enough_in_stock, callback_query_id=cqid)
+
+    elif act == "del_all":
+        pass
+
+    elif act == "confirm_all":
         pass
 
 
@@ -440,7 +468,7 @@ def main():
     # for cat in flatten(catalog.categories_kbd):
     #     states["CATALOG_"+cat] = [RegexHandler(btn,
     #         lambda bot, update, user_data:
-    #             catalog_item(bot, update, user_data=user_data, text=str(catalog[cat][btn][0]), inlinekeyboard=ik, subcat=catalog[cat][btn]),
+    #             catalog_item(bot, update, user_data=user_data, text=str(catalog[cat][btn][0]), inlinekeyboard=catalog_ikbd, subcat=catalog[cat][btn]),
     #                                            pass_user_data=True) for btn in flatten(catalog.subcat_kbd[cat])]
 
     for cat in flatten(catalog.categories_kbd):
@@ -449,7 +477,7 @@ def main():
             # print(cat, btn)
             fff = lambda bot, update, user_data: catalog_item(bot, update, user_data=user_data,
                                                               text=str(catalog[str(cat)][str(btn)][0]),
-                                                              inlinekeyboard=ik, subcat=catalog[cat][btn])
+                                                              inlinekeyboard=catalog_ikbd, subcat=catalog[cat][btn])
             states["CATALOG_" + cat].append(RegexHandler(btn, fff, pass_user_data=True))
 
     # for cc in flatten(catalog.categories_kbd):
