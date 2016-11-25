@@ -406,7 +406,12 @@ def inline(bot, update, user_data):
             bot.answerCallbackQuery(text=texts.not_enough_in_stock, callback_query_id=cqid)
 
     elif act == "del_all":
-        pass
+        for mid in user_data["cart_map"]+[user_data["cart_sum"]]:
+            bot.editMessageText(text=texts.cart_item_deleted, chat_id=chat_id, message_id=mid, parse_mode="HTML")
+        bot.answerCallbackQuery(callback_query_id=cqid)
+        user_data["cart"] = Cart()
+        del user_data["cart_map"]
+        del user_data["cart_sum"]
 
     elif act == "confirm_all":
         pass
