@@ -17,15 +17,8 @@ class Entity:
             for key, value in entity_dict.items():
                 setattr(self, key, value)
 
-    # def __getattr__(self, key):
-    #     return self._dict[key]
-    #
-    # def __setattr__(self, key, value):
-    #     self._dict[key] = value
-
     def __bool__(self):
         return bool(self._dict)
-        # return True if self._dict else False
 
     def __hash__(self):
         return hash(repr(self))
@@ -37,7 +30,7 @@ class Entity:
         return texts.entity % (self.description, self.stock, self.price)
 
     def __repr__(self):
-        return "Entity(" + (", ".join("%s=%s" % (k, v) for k, v in self._dict.items())) + ")"
+        return "Entity(" + (", ".join("%s='%s'" % (k, v) for k, v in self._dict.items())) + ")"
 
 
 class SubCat:
@@ -64,9 +57,6 @@ class SubCat:
 
     def copy(self):
         return SubCat(self.item)
-
-    # def __iter__(self):
-    #     return self
 
     def __getitem__(self, key):
         return self.item[key]
@@ -97,18 +87,19 @@ class Catalog:
         return str(self._catalog)
 
     def __repr__(self):
-        return repr(self._catalog)
-        # return str(self)
+        return "Catalog(" + repr(self._catalog) + ")"
 
 
 class Cart:
     def __init__(self, items=None):
         self.items = OrderedDict()
-        self.sum = 0
         if items:
             for p, q in items.items():
                 self.items[p] = q
-                self.sum += p.price * q
+
+    @property
+    def total(self):
+        return sum(p.price*q for p, q in self.items.items())
 
     def add(self, product=None, quantity=0):
         # TODO: check if there is enough goods in stock
@@ -119,7 +110,6 @@ class Cart:
                 self.items[product] += quantity
             else:
                 self.items[product] = quantity
-            self.sum += product.price * quantity
 
     def delete(self, product=None, quantity=0):
         if product:
@@ -128,9 +118,7 @@ class Cart:
             if product in self.items:
                 if self.items[product] > quantity:
                     self.items[product] -= quantity
-                    self.sum -= product.price * quantity
                 else:
-                    self.sum -= product.price * self.items[product]
                     del self.items[product]
 
     def str_repr(self):
@@ -138,7 +126,22 @@ class Cart:
                 for i, (p, q) in enumerate(self.items.items())]
 
     def __getitem__(self, item):
-        return self.items[item] if item in self.items else 0
+        try:
+            it = iter(self.items.keys())
+            for i in range(item+1):
+                e = next(it)
+            return e
+        except TypeError:
+            return self.items[item] if item in self.items else 0
+
+    def __delitem__(self, key):
+        try:
+            it = iter(self.items.keys())
+            for i in range(key+1):
+                e = next(it)
+            del self.items[e]
+        except TypeError:
+            del self.items[key]
 
     def __bool__(self):
         return bool(self.items)
@@ -157,49 +160,13 @@ class Cart:
 
     def __str__(self):
         return "\n\n".join(self.str_repr())
-        # return "\n\n".join(str(i+1)+". "+(texts.cart_items % (p.description, q, p.price, p.price*q)) for i, (p, q) in enumerate(self.items.items())) if self else texts.empty_cart
+
+    def __len__(self):
+        return sum(q for q in self.items.values())
 
 
 # constant for sending 'typing...'
 typing = telegram.ChatAction.TYPING
-
-########################################################################################################################
-# тестовый каталог
-# paper_a1 = Entity("лист формата А1", "123123", 14, 40)
-# paper_a2 = Entity("лист формата А2", "12ыв3", 8, 61)
-# paper_a3 = Entity("лист формата А3", "12sdыв3", 4, 84)
-# paper_a4 = Entity("лист формата А4", "12sddasыв3", 2, 1254)
-#
-# pen_1 = Entity("ручка обычная", "18asыв3", 2, 45)
-# pen_2 = Entity("ручка Илитная", "18asй3", 222, 6)
-#
-# notebook_hp = Entity("ноутбук HP", "zx18c3", 68000, 14)
-# notebook_apple = Entity("ноутбук Apple", "zx2134", 98000, 4)
-# smartphone = Entity("Asus Zenfone 2 Lazer", "z2x12c12", 10400, 2)
-
-# paper_a1 = {"description": "лист формата А1", "img": "123123", "price": 14, "stock": 40}
-# paper_a2 = {"description": "лист формата А2", "img": "12ыв3", "price": 8, "stock": 61}
-# paper_a3 = {"description": "лист формата А3", "img": "12sdыв3", "price": 4, "stock": 84}
-# paper_a4 = {"description": "лист формата А4", "img": "12sddasыв3", "price": 2, "stock": 1254}
-#
-# pen_1 = {"description": "ручка обычная", "img": "18asыв3", "price": 2, "stock": 45}
-# pen_2 = {"description": "ручка Илитная", "img": "18asй3", "price": 222, "stock": 6}
-#
-# notebook_hp = {"description": "ноутбук HP", "img": "zx18c3", "price": 68000, "stock": 14}
-# notebook_apple = {"description": "ноутбук Apple", "img": "zx2134", "price": 98000, "stock": 4}
-# smartphone = {"description": "Asus Zenfone 2 Lazer", "img": "z2x12c12", "price": 10400, "stock": 2}
-#
-# strange_stuff = {"description": "непонятное барахло", "img": "", "price": 12, "stock": 12}
-#
-# fake_catalog = {"канцтовары": {"бумага": [paper_a1, paper_a2, paper_a3, paper_a4], "другое": [pen_1, pen_2]},
-#                 "техника": {"электроника": [notebook_apple, notebook_hp, smartphone], "другое": [strange_stuff]}}
-
-# save fake catalog as json
-# with open('data.json', 'w', encoding='utf8') as fp:
-#     json.dump(catalog, fp, ensure_ascii=False, indent=4)
-# exit()
-
-########################################################################################################################
 
 with open('data.json', 'r', encoding='utf8') as fp:
     catalog = Catalog(json.load(fp, object_pairs_hook=OrderedDict))
@@ -361,7 +328,7 @@ def info_user(bot, update):
 def inline(bot, update, user_data):
     uid = update.callback_query.from_user.id
     cqid = update.callback_query.id
-    chat_id=update.callback_query.message.chat.id
+    chat_id = update.callback_query.message.chat.id
     message_id = update.callback_query.message.message_id
     act = update.callback_query.data
     scroll = user_data["scroll"]
@@ -403,8 +370,10 @@ def inline(bot, update, user_data):
 
     elif act == "cart_del":
         bot.answerCallbackQuery(callback_query_id=cqid)
-        new_cart = {k: v for i, (k, v) in enumerate(cart.items.items()) if i != user_data["cart_map"].index(message_id)}
-        user_data["cart"] = Cart(new_cart)
+        dn = user_data["cart_map"].index(message_id)
+        del user_data["cart_map"][dn]
+        del cart[dn]
+        user_data["cart"] = cart
         bot.editMessageText(text=texts.cart_item_deleted, chat_id=chat_id, message_id=message_id,
                             reply_markup=telegram.InlineKeyboardMarkup([]), parse_mode="HTML")
 
@@ -461,7 +430,8 @@ def main():
             for btn in flatten(catalog.categories_kbd)],
         "TO_CART_DONE": [RegexHandler(texts.confirm_order_btn, cart_user, pass_user_data=True),
                          RegexHandler(texts.to_cat_btn, catalog_user),
-                         RegexHandler(texts.main_menu_btn, lambda b, u: simple_answer(text=texts.in_main_menu, keyboard=main_kbd_user, next_state="MAIN_MENU_U")(b, u))],
+                         RegexHandler(texts.main_menu_btn, lambda b, u: simple_answer(
+                             text=texts.in_main_menu, keyboard=main_kbd_user, next_state="MAIN_MENU_U")(b, u))],
 
     }
 
@@ -502,10 +472,6 @@ def main():
 
     # log all errors
     dp.add_error_handler(error)
-
-    # inline keyboard handler
-    # cqh = telegram.ext.CallbackQueryHandler(inline, pass_user_data=True)
-    # dp.add_handler(cqh)
 
     # Start the Bot
     updater.start_polling()
