@@ -390,7 +390,17 @@ def inline(bot, update, user_data):
                             reply_markup=ik([]), parse_mode="HTML")
 
     elif act == "cart-1":
-        pass
+        index = user_data["cart_map"].index(message_id)
+        del_item = cart[index]
+        if cart[del_item] > 1:
+            cart -= del_item
+            bot.editMessageText(text=cart.str_repr()[index], chat_id=chat_id, message_id=message_id,
+                                reply_markup=ik(cart_item_ikbd), parse_mode="HTML")
+            bot.editMessageText(text=texts.cart_sum % (len(cart), cart.total), chat_id=chat_id, message_id=user_data["cart_sum"],
+                                reply_markup=ik(cart_sum_ikbd), parse_mode="HTML")
+            bot.answerCallbackQuery(callback_query_id=cqid)
+        else:
+            bot.answerCallbackQuery(text=texts.cart_min_q, callback_query_id=cqid)
 
     elif act == "cart+1":
         index = user_data["cart_map"].index(message_id)

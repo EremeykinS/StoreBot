@@ -58,3 +58,5 @@ cart_item_deleted = "Удалено"
 
 cart_confirm_btn = "Подтвердить всё"
 cart_decline_btn = "Удалить всё"
+
+cart_min_q = "Меньше не бывает"
