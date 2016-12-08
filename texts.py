@@ -60,3 +60,13 @@ cart_confirm_btn = "Подтвердить всё"
 cart_decline_btn = "Удалить всё"
 
 cart_min_q = "Меньше не бывает"
+
+ask_contact = "Предоставьте, пожалуйста, Ваши контактные данные. Обещаем не спамить ;-)"
+
+delivery_methods = "Выберите способ получения товара"
+
+delivery_carrier_btn = "Доставка курьером"
+delivery_pickup_btn = "Самовывоз"
+
+delivery_addr_input = "Введите адрес для доставки курьером"
+delivery_pickup_input = "Выберите пункт самовывоза"

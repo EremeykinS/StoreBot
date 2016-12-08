@@ -31,7 +31,7 @@ class Entity:
         return texts.entity % (self.description, self.stock, self.price)
 
     def __repr__(self):
-        return "Entity(" + (", ".join("%s='%s'" % (k, v) for k, v in self._dict.items())) + ")"
+        return type(self).__name__ + "(" + (", ".join("%s='%s'" % (k, v) for k, v in self._dict.items())) + ")"
 
 
 class SubCat:
@@ -100,7 +100,7 @@ class Cart:
 
     @property
     def total(self):
-        return sum(p.price*q for p, q in self.items.items())
+        return sum(p.price * q for p, q in self.items.items())
 
     def add(self, product=None, quantity=0):
         # TODO: check if there is enough goods in stock
@@ -123,13 +123,13 @@ class Cart:
                     del self.items[product]
 
     def str_repr(self):
-        return [str(i+1)+". "+(texts.cart_items % (p.description, q, p.price, p.price*q))
+        return [str(i + 1) + ". " + (texts.cart_items % (p.description, q, p.price, p.price * q))
                 for i, (p, q) in enumerate(self.items.items())]
 
     def __getitem__(self, item):
         try:
             it = iter(self.items.keys())
-            for i in range(item+1):
+            for i in range(item + 1):
                 e = next(it)
             return e
         except TypeError:
@@ -138,7 +138,7 @@ class Cart:
     def __delitem__(self, key):
         try:
             it = iter(self.items.keys())
-            for i in range(key+1):
+            for i in range(key + 1):
                 e = next(it)
             del self.items[e]
         except TypeError:
@@ -192,6 +192,7 @@ def kbd(k):
 def flatten(nl):
     return [item for sublist in nl for item in sublist]
 
+
 # keyboards
 send_contact_kbd = [[telegram.KeyboardButton(texts.send_contact, request_contact=True)]]
 main_kbd_user = [[texts.catalog_btn_user, texts.cart_btn_user],
@@ -199,6 +200,8 @@ main_kbd_user = [[texts.catalog_btn_user, texts.cart_btn_user],
 main_kbd_admin = [[texts.orders_btn_admin, texts.edit_btn_admin],
                   [texts.stat_btn_admin, texts.info_btn_admin]]
 to_cart_kbd = [[texts.confirm_order_btn], [texts.to_cat_btn], [texts.main_menu_btn]]
+delivery_methods_kbd = [[texts.delivery_carrier_btn], [texts.delivery_pickup_btn]]
+pickup_points = [["Сокольники"], ["Тимирязевская"], ["Бутово"], ["д. Гадюкино"]]  # WARNING!!!!! temporary solution
 
 # inline keyboard for catalog
 catalog_ikbd = [[ikb(texts.prev_btn, callback_data="<"), ikb(texts.next_btn, callback_data=">")],
@@ -261,9 +264,17 @@ def start(bot, update, user_data):
 def main_menu_user(bot, update, user_data):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
-    user_data['phone'] = update.message.contact.phone_number
+    # user_data['phone'] = update.message.contact.phone_number
     bot.sendMessage(update.message.chat_id, text=texts.contact_ok, parse_mode="HTML", reply_markup=kbd(main_kbd_user))
     return "MAIN_MENU_U"
+
+
+def got_contact(bot, update, user_data):
+    uid = update.message.from_user.id
+    bot.sendChatAction(uid, action=typing)
+    user_data['phone'] = update.message.contact.phone_number
+    simple_answer(text=texts.delivery_methods, keyboard=delivery_methods_kbd)(bot, update)
+    return "DELIVERY_U"
 
 
 def no_contact(bot, update):
@@ -396,7 +407,8 @@ def inline(bot, update, user_data):
             cart -= del_item
             bot.editMessageText(text=cart.str_repr()[index], chat_id=chat_id, message_id=message_id,
                                 reply_markup=ik(cart_item_ikbd), parse_mode="HTML")
-            bot.editMessageText(text=texts.cart_sum % (len(cart), cart.total), chat_id=chat_id, message_id=user_data["cart_sum"],
+            bot.editMessageText(text=texts.cart_sum % (len(cart), cart.total), chat_id=chat_id,
+                                message_id=user_data["cart_sum"],
                                 reply_markup=ik(cart_sum_ikbd), parse_mode="HTML")
             bot.answerCallbackQuery(callback_query_id=cqid)
         else:
@@ -409,14 +421,15 @@ def inline(bot, update, user_data):
             cart += add_item
             bot.editMessageText(text=cart.str_repr()[index], chat_id=chat_id, message_id=message_id,
                                 reply_markup=ik(cart_item_ikbd), parse_mode="HTML")
-            bot.editMessageText(text=texts.cart_sum % (len(cart), cart.total), chat_id=chat_id, message_id=user_data["cart_sum"],
+            bot.editMessageText(text=texts.cart_sum % (len(cart), cart.total), chat_id=chat_id,
+                                message_id=user_data["cart_sum"],
                                 reply_markup=ik(cart_sum_ikbd), parse_mode="HTML")
             bot.answerCallbackQuery(callback_query_id=cqid)
         else:
             bot.answerCallbackQuery(text=texts.not_enough_in_stock, callback_query_id=cqid)
 
     elif act == "del_all":
-        for mid in user_data["cart_map"]+[user_data["cart_sum"]]:
+        for mid in user_data["cart_map"] + [user_data["cart_sum"]]:
             bot.editMessageText(text=texts.cart_item_deleted, chat_id=chat_id, message_id=mid, parse_mode="HTML")
         bot.answerCallbackQuery(callback_query_id=cqid)
         user_data["cart"] = Cart()
@@ -424,7 +437,10 @@ def inline(bot, update, user_data):
         del user_data["cart_sum"]
 
     elif act == "confirm_all":
-        pass
+        # TODO: check if we already have phone number of this user
+        bot.answerCallbackQuery(callback_query_id=cqid)
+        bot.sendMessage(uid, text=texts.ask_contact, parse_mode="HTML", reply_markup=kbd(send_contact_kbd))
+        return "CHECK_CONTACT"
 
 
 def error(bot, update, err):
@@ -454,8 +470,8 @@ def main():
     cqh = telegram.ext.CallbackQueryHandler(inline, pass_user_data=True)
 
     states = {
-        "CHECK": [MessageHandler(Filters.contact, main_menu_user, pass_user_data=True),
-                  MessageHandler(Filters.text, no_contact)],
+        "CHECK_CONTACT": [MessageHandler(Filters.contact, got_contact, pass_user_data=True),
+                          MessageHandler(Filters.text, no_contact)],
 
         "MAIN_MENU_A": [RegexHandler(texts.orders_btn_admin, orders_admin),
                         RegexHandler(texts.edit_btn_admin, edit_admin),
@@ -475,6 +491,11 @@ def main():
                          RegexHandler(texts.to_cat_btn, catalog_user),
                          RegexHandler(texts.main_menu_btn, lambda b, u: simple_answer(
                              text=texts.in_main_menu, keyboard=main_kbd_user, next_state="MAIN_MENU_U")(b, u))],
+
+        "DELIVERY_U": [RegexHandler(texts.delivery_carrier_btn, simple_answer(text=texts.delivery_addr_input)),
+                       RegexHandler(texts.delivery_pickup_btn, simple_answer(text=texts.delivery_pickup_input,
+                                                                             keyboard=pickup_points)),
+                       ]
 
     }
 
@@ -501,7 +522,7 @@ def main():
     command_handlers = [CommandHandler('start', start, pass_user_data=True), ]
 
     # inline buttons and slash-commands must be handled from any chat state
-    states = {k: v+command_handlers+[cqh] for k, v in states.items()}
+    states = {k: v + command_handlers + [cqh] for k, v in states.items()}
 
     # Add conversation handler with the states
     conversation_handler = ConversationHandler(
