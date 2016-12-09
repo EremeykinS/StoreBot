@@ -184,15 +184,6 @@ with open('data.json', 'r', encoding='utf8') as fp:
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger('TrainRunnerBot.' + __name__)
 
-
-def kbd(k):
-    return telegram.ReplyKeyboardMarkup(k, one_time_keyboard=True, resize_keyboard=True)
-
-
-def flatten(nl):
-    return [item for sublist in nl for item in sublist]
-
-
 # keyboards
 send_contact_kbd = [[telegram.KeyboardButton(texts.send_contact, request_contact=True)]]
 main_kbd_user = [[texts.catalog_btn_user, texts.cart_btn_user],
@@ -215,7 +206,15 @@ cart_sum_ikbd = [[ikb(texts.cart_decline_btn, callback_data="del_all"),
                   ikb(texts.cart_confirm_btn, callback_data="confirm_all")]]
 
 
-def simple_answer(text, keyboard=None, inlinekeyboard=None, next_state=None):
+def kbd(k):
+    return telegram.ReplyKeyboardMarkup(k, one_time_keyboard=True, resize_keyboard=True)
+
+
+def flatten(nl):
+    return [item for sublist in nl for item in sublist]
+
+
+def ans(text, keyboard=None, inlinekeyboard=None, next_state=None):
     if keyboard:
         def answer_function(bot, update):
             uid = update.message.from_user.id
@@ -241,6 +240,13 @@ def simple_answer(text, keyboard=None, inlinekeyboard=None, next_state=None):
     return answer_function
 
 
+def saving_ans(text: str, name: str, keyboard=None, inlinekeyboard=None, next_state=None):
+    def answer_function(bot, update, user_data):
+        user_data[name] = update.message.text
+        return ans(text, keyboard=keyboard, inlinekeyboard=inlinekeyboard, next_state=next_state)(bot, update)
+    return answer_function
+
+
 def start(bot, update, user_data):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
@@ -258,7 +264,7 @@ def start(bot, update, user_data):
             text = texts.welcome_again_user
         keyboard = main_kbd_user
         next_state = "MAIN_MENU_U"
-    return simple_answer(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
+    return ans(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
 
 
 def main_menu_user(bot, update, user_data):
@@ -269,11 +275,12 @@ def main_menu_user(bot, update, user_data):
     return "MAIN_MENU_U"
 
 
-def got_contact(bot, update, user_data):
+def got_contact(bot, update, user_data=None):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
-    user_data['phone'] = update.message.contact.phone_number
-    simple_answer(text=texts.delivery_methods, keyboard=delivery_methods_kbd)(bot, update)
+    if user_data and update.message.contact:
+        user_data['phone'] = update.message.contact.phone_number
+    ans(text=texts.delivery_methods, keyboard=delivery_methods_kbd)(bot, update)
     return "DELIVERY_U"
 
 
@@ -282,6 +289,16 @@ def no_contact(bot, update):
     bot.sendChatAction(uid, action=typing)
     bot.sendSticker(uid, sticker=texts.sticker)
     bot.sendMessage(uid, text=texts.contact_err, parse_mode="HTML", reply_markup=kbd(send_contact_kbd))
+
+
+def delivery_confirm(bot, update, user_data):
+    # TODO: write all this stuff to DB
+    user_data["delivery_time"] = update.message.text
+    text = texts.delivery_confirmation % (user_data["delivery_addr"],
+                                          user_data["delivery_date"],
+                                          user_data["delivery_time"],
+                                          user_data["cart"].total)
+    ans(text=text)(bot, update)
 
 
 def orders_admin(bot, update):
@@ -309,13 +326,13 @@ def info_admin(bot, update):
 
 
 def catalog_user(bot, update):
-    return simple_answer(text=texts.select_category, keyboard=catalog.categories_kbd, next_state="CATALOG")(bot, update)
+    return ans(text=texts.select_category, keyboard=catalog.categories_kbd, next_state="CATALOG")(bot, update)
 
 
 def catalog_item(bot, update, user_data=None, text=None, inlinekeyboard=None, next_state=None, subcat=None):
     # TODO: Hide prev inline kbd
     user_data["scroll"] = subcat.copy()
-    return simple_answer(text=text, inlinekeyboard=inlinekeyboard, next_state=next_state)(bot, update)
+    return ans(text=text, inlinekeyboard=inlinekeyboard, next_state=next_state)(bot, update)
 
 
 def cart_user(bot, update, user_data):
@@ -323,7 +340,7 @@ def cart_user(bot, update, user_data):
     cart = user_data["cart"]
 
     if cart:
-        simple_answer(text=texts.cart_welcome)(bot, update)
+        ans(text=texts.cart_welcome)(bot, update)
         msgs = []
         for item in user_data["cart"].str_repr():
             bot.sendChatAction(uid, action=typing)
@@ -332,7 +349,7 @@ def cart_user(bot, update, user_data):
         user_data["cart_sum"] = bot.sendMessage(uid, text=texts.cart_sum % (len(cart), cart.total),
                                                 reply_markup=ik(cart_sum_ikbd), parse_mode="HTML").message_id
     else:
-        simple_answer(text=texts.empty_cart, keyboard=main_kbd_user)(bot, update)
+        ans(text=texts.empty_cart, keyboard=main_kbd_user)(bot, update)
     return "MAIN_MENU_U"
 
 
@@ -437,10 +454,14 @@ def inline(bot, update, user_data):
         del user_data["cart_sum"]
 
     elif act == "confirm_all":
-        # TODO: check if we already have phone number of this user
         bot.answerCallbackQuery(callback_query_id=cqid)
-        bot.sendMessage(uid, text=texts.ask_contact, parse_mode="HTML", reply_markup=kbd(send_contact_kbd))
-        return "CHECK_CONTACT"
+        if "phone" not in user_data:
+            bot.sendMessage(uid, text=texts.ask_contact, parse_mode="HTML", reply_markup=kbd(send_contact_kbd))
+            return "CHECK_CONTACT"
+        else:
+            bot.sendMessage(uid, text=texts.delivery_methods, reply_markup=kbd(delivery_methods_kbd), parse_mode="HTML")
+            return "DELIVERY_U"
+
 
 
 def error(bot, update, err):
@@ -484,18 +505,28 @@ def main():
                         RegexHandler(texts.info_btn_user, info_user)],
 
         "CATALOG": [
-            RegexHandler(btn, simple_answer(text=texts.select_subcategory % btn, keyboard=catalog.subcat_kbd[btn],
-                                            next_state="CATALOG_" + btn))
+            RegexHandler(btn, ans(text=texts.select_subcategory % btn, keyboard=catalog.subcat_kbd[btn],
+                                  next_state="CATALOG_" + btn))
             for btn in flatten(catalog.categories_kbd)],
         "TO_CART_DONE": [RegexHandler(texts.confirm_order_btn, cart_user, pass_user_data=True),
                          RegexHandler(texts.to_cat_btn, catalog_user),
-                         RegexHandler(texts.main_menu_btn, lambda b, u: simple_answer(
+                         RegexHandler(texts.main_menu_btn, lambda b, u: ans(
                              text=texts.in_main_menu, keyboard=main_kbd_user, next_state="MAIN_MENU_U")(b, u))],
 
-        "DELIVERY_U": [RegexHandler(texts.delivery_carrier_btn, simple_answer(text=texts.delivery_addr_input)),
-                       RegexHandler(texts.delivery_pickup_btn, simple_answer(text=texts.delivery_pickup_input,
-                                                                             keyboard=pickup_points)),
-                       ]
+        "DELIVERY_U": [RegexHandler(texts.delivery_carrier_btn, ans(text=texts.delivery_addr_input,
+                                                                    next_state="DELIVERY_ADDR")),
+                       RegexHandler(texts.delivery_pickup_btn, ans(text=texts.delivery_pickup_input,
+                                                                   keyboard=pickup_points,
+                                                                   next_state="PICKUP_POINT")),
+                       ],
+
+        "DELIVERY_ADDR": [MessageHandler(Filters.text, saving_ans(text=texts.delivery_date_input, name="delivery_addr",
+                                                                  next_state="DELIVERY_DATE"), pass_user_data=True)],
+
+        "DELIVERY_DATE": [MessageHandler(Filters.text, saving_ans(text=texts.delivery_time_input, name="delivery_date",
+                                                                  next_state="DELIVERY_TIME"), pass_user_data=True)],
+
+        "DELIVERY_TIME": [MessageHandler(Filters.text, delivery_confirm, pass_user_data=True)],
 
     }
 

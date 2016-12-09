@@ -70,3 +70,10 @@ delivery_pickup_btn = "Самовывоз"
 
 delivery_addr_input = "Введите адрес для доставки курьером"
 delivery_pickup_input = "Выберите пункт самовывоза"
+
+delivery_date_input = "Введите дату поставки"
+delivery_time_input = "Выберите время поставки"
+
+delivery_confirmation = "Вы заказали доставку по адресу: \"%s\".\n" \
+                   "Дата и время поставки: %s, %s\n" \
+                   "Готовься платить! С тебя %.2f"
