@@ -332,6 +332,8 @@ def catalog_user(bot, update):
 def catalog_item(bot, update, user_data=None, text=None, inlinekeyboard=None, next_state=None, subcat=None):
     # TODO: Hide prev inline kbd
     user_data["scroll"] = subcat.copy()
+    if inlinekeyboard is None:
+        inlinekeyboard = catalog_ikbd
     return ans(text=text, inlinekeyboard=inlinekeyboard, next_state=next_state)(bot, update)
 
 
@@ -463,7 +465,6 @@ def inline(bot, update, user_data):
             return "DELIVERY_U"
 
 
-
 def error(bot, update, err):
     logger.warn('Update "%s" caused error "%s"' % (update, err))
 
@@ -530,25 +531,13 @@ def main():
 
     }
 
-    # (bot, update, user_data=None, text=None, inlinekeyboard=None, next_state=None, subcat=None)
-
-    # for cat in flatten(catalog.categories_kbd):
-    #     states["CATALOG_"+cat] = [RegexHandler(btn,
-    #         lambda bot, update, user_data:
-    #             catalog_item(bot, update, user_data=user_data, text=str(catalog[cat][btn][0]), inlinekeyboard=catalog_ikbd, subcat=catalog[cat][btn]),
-    #                                            pass_user_data=True) for btn in flatten(catalog.subcat_kbd[cat])]
-
     for cat in flatten(catalog.categories_kbd):
-        states["CATALOG_" + cat] = [cqh]
-        for btn in flatten(catalog.subcat_kbd[cat]):
-            # print(cat, btn)
-            fff = lambda bot, update, user_data: catalog_item(bot, update, user_data=user_data,
-                                                              text=str(catalog[str(cat)][str(btn)][0]),
-                                                              inlinekeyboard=catalog_ikbd, subcat=catalog[cat][btn])
-            states["CATALOG_" + cat].append(RegexHandler(btn, fff, pass_user_data=True))
-
-    # for cc in flatten(catalog.categories_kbd):
-    #     states["CATALOG_"+cc] = [RegexHandler(btn, lambda bot, update, user_data: print("cat = ", cc, ";\t btn = ", btn), pass_user_data=True) for btn in flatten(catalog.subcat_kbd[cc])]
+        states["CATALOG_" + cat] = [RegexHandler(btn,
+                                                 lambda bot, update, user_data, cat=cat, btn=btn:
+                                                 catalog_item(bot, update, user_data=user_data,
+                                                              text=str(catalog[cat][btn][0]), subcat=catalog[cat][btn]),
+                                                 pass_user_data=True)
+                                    for btn in flatten(catalog.subcat_kbd[cat])]
 
     command_handlers = [CommandHandler('start', start, pass_user_data=True), ]
 
@@ -556,10 +545,7 @@ def main():
     states = {k: v + command_handlers + [cqh] for k, v in states.items()}
 
     # Add conversation handler with the states
-    conversation_handler = ConversationHandler(
-        entry_points=command_handlers,
-        states=states,
-        fallbacks=[])
+    conversation_handler = ConversationHandler(entry_points=command_handlers, states=states, fallbacks=[])
 
     # загрузка данных
     # load_data()
