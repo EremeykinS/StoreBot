@@ -1,188 +1,24 @@
-from config import *
-import texts
 import json
 import logging
+from collections import OrderedDict
+
 import telegram
-from collections import OrderedDict  # , namedtuple
 from telegram.ext import Updater, CommandHandler, ConversationHandler, MessageHandler, RegexHandler, Filters
 from telegram import InlineKeyboardButton as ikb
 from telegram import InlineKeyboardMarkup as ik
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-
-class Entity:
-    def __init__(self, entity_dict=None):
-        if entity_dict is None:
-            self._dict = OrderedDict()
-        else:
-            self._dict = entity_dict
-            for key, value in entity_dict.items():
-                setattr(self, key, value)
-
-    def __bool__(self):
-        return bool(self._dict)
-
-    def __hash__(self):
-        return hash(repr(self))
-
-    def __eq__(self, other):
-        return self._dict == other._dict
-
-    def __str__(self):
-        return texts.entity % (self.description, self.stock, self.price)
-
-    def __repr__(self):
-        return type(self).__name__ + "(" + (", ".join("%s='%s'" % (k, v) for k, v in self._dict.items())) + ")"
-
-
-class SubCat:
-    def __init__(self, collection):
-        self.item = tuple(collection)
-        self.index = 0
-
-    def get_current(self):
-        return self.item[self.index]
-
-    def get_next(self):
-        if self.index < len(self.item) - 1:
-            self.index += 1
-            return self.item[self.index]
-        else:
-            return Entity()
-
-    def get_prev(self):
-        if self.index > 0:
-            self.index -= 1
-            return self.item[self.index]
-        else:
-            return Entity()
-
-    def copy(self):
-        return SubCat(self.item)
-
-    def __getitem__(self, key):
-        return self.item[key]
-
-    def __str__(self):
-        return str(self.item)
-
-    def __repr__(self):
-        return str(self)
-
-
-class Catalog:
-    def __init__(self, catalog_dict):
-        self._catalog = OrderedDict()
-        self.categories_kbd = list([k] for k in catalog_dict.keys())
-        self.subcat_kbd = OrderedDict()
-
-        for category_name, category_dict in catalog_dict.items():
-            self._catalog[category_name] = OrderedDict()
-            self.subcat_kbd[category_name] = [[scn] for scn in category_dict.keys()]
-            for subcat_name, subcat_dict in category_dict.items():
-                self._catalog[category_name][subcat_name] = SubCat(Entity(item) for item in subcat_dict)
-
-    def __getitem__(self, key):
-        return self._catalog[key]
-
-    def __str__(self):
-        return str(self._catalog)
-
-    def __repr__(self):
-        return "Catalog(" + repr(self._catalog) + ")"
-
-
-class Cart:
-    def __init__(self, items=None):
-        self.items = OrderedDict()
-        if items:
-            for p, q in items.items():
-                self.items[p] = q
-
-    @property
-    def total(self):
-        return sum(p.price * q for p, q in self.items.items())
-
-    def add(self, product=None, quantity=0):
-        # TODO: check if there is enough goods in stock
-        if product:
-            if quantity == 0:
-                quantity = 1
-            if product in self.items:
-                self.items[product] += quantity
-            else:
-                self.items[product] = quantity
-
-    def delete(self, product=None, quantity=0):
-        if product:
-            if quantity == 0:
-                quantity = 1
-            if product in self.items:
-                if self.items[product] > quantity:
-                    self.items[product] -= quantity
-                else:
-                    del self.items[product]
-
-    def str_repr(self):
-        return [str(i + 1) + ". " + (texts.cart_items % (p.description, q, p.price, p.price * q))
-                for i, (p, q) in enumerate(self.items.items())]
-
-    def __getitem__(self, item):
-        try:
-            it = iter(self.items.keys())
-            for i in range(item + 1):
-                e = next(it)
-            return e
-        except TypeError:
-            return self.items[item] if item in self.items else 0
-
-    def __delitem__(self, key):
-        try:
-            it = iter(self.items.keys())
-            for i in range(key + 1):
-                e = next(it)
-            del self.items[e]
-        except TypeError:
-            del self.items[key]
-
-    def __contains__(self, item):
-        try:
-            return 0 <= item < len(self.items)
-        except TypeError:
-            return item in self.items
-
-    def __bool__(self):
-        return bool(self.items)
-
-    def __add__(self, other):
-        return Cart(self.items).add(other)
-
-    def __sub__(self, other):
-        return Cart(self.items).delete(other)
-
-    def __iadd__(self, other):
-        self.add(other)
-        return self
-
-    def __isub__(self, other):
-        self.delete(other)
-        return self
-
-    def __str__(self):
-        return "\n\n".join(self.str_repr())
-
-    def __len__(self):
-        return sum(q for q in self.items.values())
-
+from config import *
+from models import Base, User, Order, Catalog, Cart
+import texts
 
 # constant for sending 'typing...'
 typing = telegram.ChatAction.TYPING
 
-with open('data.json', 'r', encoding='utf8') as fp:
-    catalog = Catalog(json.load(fp, object_pairs_hook=OrderedDict))
-
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger('TrainRunnerBot.' + __name__)
+logger = logging.getLogger('StoreBot.' + __name__)
 
 # keyboards
 send_contact_kbd = [[telegram.KeyboardButton(texts.send_contact, request_contact=True)]]
@@ -204,6 +40,14 @@ cart_item_ikbd = [[ikb(texts.cart_item_dec1_btn, callback_data="cart-1"),
 # inline keyboard for cart summary
 cart_sum_ikbd = [[ikb(texts.cart_decline_btn, callback_data="del_all"),
                   ikb(texts.cart_confirm_btn, callback_data="confirm_all")]]
+
+with open('data.json', 'r', encoding='utf8') as fp:
+    catalog = Catalog(json.load(fp, object_pairs_hook=OrderedDict))
+
+engine = create_engine('postgresql://%s:%s@%s:%s/%s' % (db_username, db_password, db_host, db_port, db_name))
+Session = sessionmaker(bind=engine)
+session = Session()
+Base.metadata.create_all(engine)
 
 
 def kbd(k):
@@ -250,16 +94,34 @@ def saving_ans(text: str, name: str, keyboard=None, inlinekeyboard=None, next_st
 def start(bot, update, user_data):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
+    # if the user is admin
     if uid == owner_id:
         text = texts.welcome_admin
         keyboard = main_kbd_admin
         next_state = "MAIN_MENU_A"
+    # if the user is an ordinary user (is not admin)
     else:
-        if 'first_name' not in user_data:
-            user_data['first_name'] = update.message.from_user.first_name
-            user_data['last_name'] = update.message.from_user.last_name
+        # if user is not saved in user_data dict
+        if 'user' not in user_data:
+            # and the user is not saved in DB
+            if session.query(User.tuid).filter_by(tuid=uid).scalar() is None:
+                # we should save the user in user_data dict
+                from_user = update.message.from_user
+                user = User(tuid=uid, first_name=from_user.first_name, last_name=from_user.last_name)
+                # also save the user in DB
+                session.add(user)
+                session.commit()
+            # but if the user is saved in DB
+            else:
+                # we should load the user to user_data dict
+                user = session.query(User).filter_by(tuid=uid).scalar()
+                user_data['user'] = user
+            # create an empty cart for the user
             user_data["cart"] = Cart()
+            user_data["prev_delivery_addr"] = []
+            # welcome, pathetic user
             text = texts.welcome_user
+        # if user is saved in user_data dict we have nothing to do but to welcome him again
         else:
             text = texts.welcome_again_user
         keyboard = main_kbd_user
@@ -270,7 +132,6 @@ def start(bot, update, user_data):
 def main_menu_user(bot, update, user_data):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
-    # user_data['phone'] = update.message.contact.phone_number
     bot.sendMessage(update.message.chat_id, text=texts.contact_ok, parse_mode="HTML", reply_markup=kbd(main_kbd_user))
     return "MAIN_MENU_U"
 
@@ -279,7 +140,11 @@ def got_contact(bot, update, user_data=None):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
     if user_data and update.message.contact:
-        user_data['phone'] = update.message.contact.phone_number
+        phone = update.message.contact.phone_number
+        user_data['phone'] = phone
+        user = session.query(User).filter_by(tuid=uid).scalar()
+        user.phone = phone
+        session.commit()
     ans(text=texts.delivery_methods, keyboard=delivery_methods_kbd)(bot, update)
     return "DELIVERY_U"
 
@@ -291,14 +156,40 @@ def no_contact(bot, update):
     bot.sendMessage(uid, text=texts.contact_err, parse_mode="HTML", reply_markup=kbd(send_contact_kbd))
 
 
-def delivery_confirm(bot, update, user_data):
-    # TODO: write all this stuff to DB
-    user_data["delivery_time"] = update.message.text
-    text = texts.delivery_confirmation % (user_data["delivery_addr"],
-                                          user_data["delivery_date"],
-                                          user_data["delivery_time"],
-                                          user_data["cart"].total)
-    ans(text=text)(bot, update)
+def order_confirm(bot, update, user_data):
+    answer = update.message.text
+    # delivery:
+    if "delivery_addr" in user_data:
+        user_data["delivery_time"] = answer
+        addr = user_data["delivery_addr"]
+        ddate = user_data["delivery_date"]
+        dtime = user_data["delivery_time"]
+        cart = user_data["cart"]
+        order_json = cart.json_repr()
+        new_order = Order(addr=addr, ddate=ddate, dtime=dtime, order=order_json)
+        user = user_data['user']
+        user.uorders.append(new_order)
+        session.commit()
+        # TODO: save delivery_addr and suggest it next time
+        user_data["prev_delivery_addr"].append(addr)
+        user_data["cart"] = Cart()
+        del user_data["delivery_addr"]
+        del user_data["delivery_date"]
+        del user_data["delivery_time"]
+        text = texts.delivery_confirmation % (addr, ddate, dtime, cart.total)
+    # pickup:
+    else:
+        pickup_point = answer
+        cart = user_data["cart"]
+        order_json = cart.json_repr()
+        new_order = Order(pickup=pickup_point, order=order_json)
+        user = user_data['user']
+        user.uorders.append(new_order)
+        session.commit()
+        user_data["cart"] = Cart()
+        text = texts.pickup_confirmation % (answer, cart.total)
+    ans(text=text, keyboard=main_kbd_user)(bot, update)
+    return "MAIN_MENU_U"
 
 
 def orders_admin(bot, update):
@@ -471,10 +362,6 @@ def error(bot, update, err):
 
 def load_data():
     pass
-    # load catalog from JSON
-    # with open('data.json', 'r', encoding='utf8') as fp:
-    #     catalog = Catalog(json.load(fp, object_pairs_hook=OrderedDict))
-    # return catalog
 
 
 def save_data():
@@ -527,7 +414,9 @@ def main():
         "DELIVERY_DATE": [MessageHandler(Filters.text, saving_ans(text=texts.delivery_time_input, name="delivery_date",
                                                                   next_state="DELIVERY_TIME"), pass_user_data=True)],
 
-        "DELIVERY_TIME": [MessageHandler(Filters.text, delivery_confirm, pass_user_data=True)],
+        "DELIVERY_TIME": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
+
+        "PICKUP_POINT": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
 
     }
 
