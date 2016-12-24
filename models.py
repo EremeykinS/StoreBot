@@ -40,9 +40,17 @@ class Order(Base):
     def __init__(self, **kwargs):
         kwargs.update(
             dict(status=kwargs.get("status", texts.default_order_status),
-                 ddate=kwargs.get("ddate", now() + timedelta(days=1)),
+                 ddate=kwargs.get("ddate", now() + timedelta(days=2)),
                  dtime=kwargs.get("dtime", "12:00")))
         super().__init__(**kwargs)
+
+    def __str__(self):
+        content = ""
+        _order = json.loads(self.order, object_pairs_hook=dict)
+        for e in _order:
+            content += e['description'] + " (%d), " % e['q']
+        total = sum(e['price']*e['q'] for e in _order)
+        return texts.order_info % (content, total, self.status, self.upd.strftime("%d %B %Y (%H:%M)"))
 
 
 class Entity:
@@ -50,8 +58,8 @@ class Entity:
         if entity_dict is None:
             self._dict = OrderedDict()
         else:
-            self._dict = entity_dict
-            for key, value in entity_dict.items():
+            self._dict = OrderedDict(entity_dict)
+            for key, value in self._dict.items():
                 setattr(self, key, value)
 
     def __bool__(self):
@@ -164,9 +172,22 @@ class Cart:
 
     def json_repr(self):
         tl = []
-        for k, v in self.items.items():
-            tl.append(json.dumps(k._dict) + ": " + str(v))
-        return "{\n" + ",\n\t".join(tl) + "\n}\n"
+        for e, q in self.items.items():
+            new_e = Entity(e._dict)
+            new_e._dict["q"] = q
+            tl.append(new_e._dict)
+        return json.dumps(tl)
+
+    @classmethod
+    def from_json(cls, json_string):
+        cart = cls()
+        d = json.loads(json_string, object_pairs_hook=OrderedDict)
+        for e in d:
+            q = e.q
+            del e.q
+            restored_e = Entity(e)
+            cart.add(restored_e, q)
+        return cart
 
     def __getitem__(self, item):
         try:

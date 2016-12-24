@@ -186,8 +186,8 @@ def order_confirm(bot, update, user_data):
         user = user_data['user']
         user.uorders.append(new_order)
         session.commit()
-        user_data["cart"] = Cart()
         text = texts.pickup_confirmation % (answer, cart.total)
+        user_data["cart"] = Cart()
     ans(text=text, keyboard=main_kbd_user)(bot, update)
     return "MAIN_MENU_U"
 
@@ -246,10 +246,32 @@ def cart_user(bot, update, user_data):
     return "MAIN_MENU_U"
 
 
-def orders_user(bot, update):
+def orders_user(bot, update, user_data):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
-    bot.sendMessage(update.message.chat_id, text='orders', parse_mode="HTML", reply_markup=kbd(main_kbd_user))
+    user_orders = session.query(Order).filter_by(uid=uid).all()
+    if len(user_orders) > 0:
+        user_orders.sort(key=lambda x: x.timestamp, reverse=True)
+        user_data["user_orders"] = user_orders
+        keyboard = [[str(order.timestamp.strftime("%d %B %Y (%H:%M)"))] for order in user_orders]
+        text = texts.select_order
+        next_state = "ORDERS_U"
+    else:
+        text = texts.no_orders
+        keyboard = main_kbd_user
+        next_state = "MAIN_MENU_U"
+    return ans(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
+
+
+def order_action(bot, update, user_data):
+    uid = update.message.from_user.id
+    bot.sendChatAction(uid, action=typing)
+    user_orders = user_data["user_orders"]
+    answer = update.message.text
+    for order in user_orders:
+        if order.timestamp.strftime("%d %B %Y (%H:%M)") == answer:
+            break
+    ans(text=str(order), keyboard=main_kbd_user)(bot, update)
 
 
 def info_user(bot, update):
@@ -389,13 +411,14 @@ def main():
 
         "MAIN_MENU_U": [RegexHandler(texts.catalog_btn_user, catalog_user),
                         RegexHandler(texts.cart_btn_user, cart_user, pass_user_data=True),
-                        RegexHandler(texts.orders_btn_user, orders_user),
+                        RegexHandler(texts.orders_btn_user, orders_user, pass_user_data=True),
                         RegexHandler(texts.info_btn_user, info_user)],
 
         "CATALOG": [
             RegexHandler(btn, ans(text=texts.select_subcategory % btn, keyboard=catalog.subcat_kbd[btn],
                                   next_state="CATALOG_" + btn))
             for btn in flatten(catalog.categories_kbd)],
+
         "TO_CART_DONE": [RegexHandler(texts.confirm_order_btn, cart_user, pass_user_data=True),
                          RegexHandler(texts.to_cat_btn, catalog_user),
                          RegexHandler(texts.main_menu_btn, lambda b, u: ans(
@@ -417,6 +440,8 @@ def main():
         "DELIVERY_TIME": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
 
         "PICKUP_POINT": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
+
+        "ORDERS_U": [MessageHandler(Filters.text, order_action, pass_user_data=True)]
 
     }
 
