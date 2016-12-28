@@ -50,7 +50,10 @@ class Order(Base):
         for e in _order:
             content += e['description'] + " (%d), " % e['q']
         total = sum(e['price']*e['q'] for e in _order)
-        return texts.order_info % (content, total, self.status, self.upd.strftime("%d %B %Y (%H:%M)"))
+        return texts.order_info % (content, total, self.status, self.upd.strftime(texts.dt_format))
+
+    def full_label(self):
+        return self.timestamp.strftime(texts.dt_format) + " [" + self.user.first_name + " " + self.user.last_name + "]"
 
 
 class Entity:

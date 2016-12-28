@@ -1,4 +1,5 @@
 import json
+import datetime
 import logging
 from collections import OrderedDict
 
@@ -9,9 +10,9 @@ from telegram import InlineKeyboardMarkup as ik
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import texts
 from config import *
 from models import Base, User, Order, Catalog, Cart
-import texts
 
 # constant for sending 'typing...'
 typing = telegram.ChatAction.TYPING
@@ -28,7 +29,8 @@ main_kbd_admin = [[texts.orders_btn_admin, texts.edit_btn_admin],
                   [texts.stat_btn_admin, texts.info_btn_admin]]
 to_cart_kbd = [[texts.confirm_order_btn], [texts.to_cat_btn], [texts.main_menu_btn]]
 delivery_methods_kbd = [[texts.delivery_carrier_btn], [texts.delivery_pickup_btn]]
-pickup_points = [["Сокольники"], ["Тимирязевская"], ["Бутово"], ["д. Гадюкино"]]  # WARNING!!!!! temporary solution
+pickup_points = [[point] for point in texts.pickup_point]
+orders_sort_kbd = [[texts.active_orders_btn], [texts.date_orders_btn], [texts.archive_orders_btn]]
 
 # inline keyboard for catalog
 catalog_ikbd = [[ikb(texts.prev_btn, callback_data="<"), ikb(texts.next_btn, callback_data=">")],
@@ -40,6 +42,8 @@ cart_item_ikbd = [[ikb(texts.cart_item_dec1_btn, callback_data="cart-1"),
 # inline keyboard for cart summary
 cart_sum_ikbd = [[ikb(texts.cart_decline_btn, callback_data="del_all"),
                   ikb(texts.cart_confirm_btn, callback_data="confirm_all")]]
+# inline keyboard for admin to edit order status
+edit_order_ikbd = [[ikb(texts.edit_order_status_btn, callback_data="edit_order_status")]]
 
 with open('data.json', 'r', encoding='utf8') as fp:
     catalog = Catalog(json.load(fp, object_pairs_hook=OrderedDict))
@@ -84,6 +88,7 @@ def ans(text, keyboard=None, inlinekeyboard=None, next_state=None):
     return answer_function
 
 
+# TODO: validate user input
 def saving_ans(text: str, name: str, keyboard=None, inlinekeyboard=None, next_state=None):
     def answer_function(bot, update, user_data):
         user_data[name] = update.message.text
@@ -193,9 +198,67 @@ def order_confirm(bot, update, user_data):
 
 
 def orders_admin(bot, update):
-    uid = update.message.from_user.id
-    bot.sendChatAction(uid, action=typing)
-    bot.sendMessage(update.message.chat_id, text='orders', parse_mode="HTML", reply_markup=kbd(main_kbd_user))
+    return ans(texts.orders_sort, keyboard=orders_sort_kbd, next_state="ORDERS_SORT_A")(bot, update)
+
+
+def show_active_orders(bot, update, user_data):
+    orders = session.query(Order).filter(Order.status != texts.order_status_completed)
+    if orders.all():
+        user_data["selected_orders"] = orders
+        text = texts.select_order
+        keyboard = [[order.full_label()] for order in orders]
+        next_state = "ORDER_PROCESS_A"
+    else:
+        text = texts.no_selected_order
+        keyboard = orders_sort_kbd
+        next_state = None
+    return ans(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
+
+
+def show_date_orders(bot, update, user_data):
+    answer = update.message.text
+    try:
+        day, month, year = map(lambda x: int(x), answer.split(sep="."))
+        date = datetime.date(year, month, day)
+    except ValueError:
+        text = texts.wrong_date_format
+        keyboard = orders_sort_kbd
+        next_state = None
+    else:
+        orders = session.query(Order).filter(Order.ddate == date)
+        if orders.all():
+            user_data["selected_orders"] = orders
+            text = texts.select_order
+            keyboard = [[order.full_label()] for order in orders]
+            next_state = "ORDER_PROCESS_A"
+        else:
+            text = texts.no_selected_order
+            keyboard = orders_sort_kbd
+            next_state = None
+    return ans(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
+
+
+def show_archive(bot, update, user_data):
+    orders = session.query(Order).filter(Order.status == texts.order_status_completed)
+    if orders.all():
+        user_data["selected_orders"] = orders
+        text = texts.select_order
+        keyboard = [[order.full_label()] for order in orders]
+        next_state = "ORDER_PROCESS_A"
+    else:
+        text = texts.no_selected_order
+        keyboard = orders_sort_kbd
+        next_state = None
+    return ans(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
+
+
+def process_order_admin(bot, update, user_data):
+    answer = update.message.text
+    for order in user_data["selected_orders"]:
+        if order.full_label == answer:
+            break
+    inlinekeyboard = edit_order_ikbd if order.status != texts.order_status_completed else None
+    ans(text=str(order), inlinekeyboard=inlinekeyboard)(bot, update)
 
 
 def edit_admin(bot, update):
@@ -233,7 +296,7 @@ def cart_user(bot, update, user_data):
     cart = user_data["cart"]
 
     if cart:
-        ans(text=texts.cart_welcome)(bot, update)
+        ans(text=texts.cart_welcome, keyboard=main_kbd_user)(bot, update)
         msgs = []
         for item in user_data["cart"].str_repr():
             bot.sendChatAction(uid, action=typing)
@@ -253,7 +316,7 @@ def orders_user(bot, update, user_data):
     if len(user_orders) > 0:
         user_orders.sort(key=lambda x: x.timestamp, reverse=True)
         user_data["user_orders"] = user_orders
-        keyboard = [[str(order.timestamp.strftime("%d %B %Y (%H:%M)"))] for order in user_orders]
+        keyboard = [[str(order.timestamp.strftime(texts.dt_format))] for order in user_orders]
         text = texts.select_order
         next_state = "ORDERS_U"
     else:
@@ -269,7 +332,7 @@ def order_action(bot, update, user_data):
     user_orders = user_data["user_orders"]
     answer = update.message.text
     for order in user_orders:
-        if order.timestamp.strftime("%d %B %Y (%H:%M)") == answer:
+        if order.timestamp.strftime(texts.dt_format) == answer:
             break
     ans(text=str(order), keyboard=main_kbd_user)(bot, update)
 
@@ -286,8 +349,11 @@ def inline(bot, update, user_data):
     chat_id = update.callback_query.message.chat.id
     message_id = update.callback_query.message.message_id
     act = update.callback_query.data
-    scroll = user_data["scroll"]
-    cart = user_data["cart"]
+    try:
+        scroll = user_data["scroll"]
+        cart = user_data["cart"]
+    except KeyError:
+        pass
 
     if act == '>':
         next_e = scroll.get_next()
@@ -377,6 +443,9 @@ def inline(bot, update, user_data):
             bot.sendMessage(uid, text=texts.delivery_methods, reply_markup=kbd(delivery_methods_kbd), parse_mode="HTML")
             return "DELIVERY_U"
 
+    elif act == "edit_order_status":
+        bot.answerCallbackQuery(callback_query_id=cqid)
+
 
 def error(bot, update, err):
     logger.warn('Update "%s" caused error "%s"' % (update, err))
@@ -441,7 +510,15 @@ def main():
 
         "PICKUP_POINT": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
 
-        "ORDERS_U": [MessageHandler(Filters.text, order_action, pass_user_data=True)]
+        "ORDERS_U": [MessageHandler(Filters.text, order_action, pass_user_data=True)],
+
+        "ORDERS_SORT_A": [RegexHandler(texts.active_orders_btn, show_active_orders, pass_user_data=True),
+                          RegexHandler(texts.date_orders_btn, ans(texts.date_input, next_state="DATE_INPUT_A")),
+                          RegexHandler(texts.archive_orders_btn, show_archive, pass_user_data=True)],
+
+        "DATE_INPUT_A": [MessageHandler(Filters.text, show_date_orders, pass_user_data=True)],
+
+        "ORDER_PROCESS_A": [MessageHandler(Filters.text, process_order_admin, pass_user_data=True)]
 
     }
 
