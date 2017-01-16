@@ -31,6 +31,8 @@ to_cart_kbd = [[texts.confirm_order_btn], [texts.to_cat_btn], [texts.main_menu_b
 delivery_methods_kbd = [[texts.delivery_carrier_btn], [texts.delivery_pickup_btn]]
 pickup_points = [[point] for point in texts.pickup_point]
 orders_sort_kbd = [[texts.active_orders_btn], [texts.date_orders_btn], [texts.archive_orders_btn]]
+order_status_kbd = [[texts.default_order_status], [texts.order_status_delivery], [texts.order_status_pickup],
+                    [texts.order_status_completed], [texts.cancel_status_input_btn]]
 
 # inline keyboard for catalog
 catalog_ikbd = [[ikb(texts.prev_btn, callback_data="<"), ikb(texts.next_btn, callback_data=">")],
@@ -93,6 +95,7 @@ def saving_ans(text: str, name: str, keyboard=None, inlinekeyboard=None, next_st
     def answer_function(bot, update, user_data):
         user_data[name] = update.message.text
         return ans(text, keyboard=keyboard, inlinekeyboard=inlinekeyboard, next_state=next_state)(bot, update)
+
     return answer_function
 
 
@@ -222,7 +225,7 @@ def show_date_orders(bot, update, user_data):
         date = datetime.date(year, month, day)
     except ValueError:
         text = texts.wrong_date_format
-        keyboard = orders_sort_kbd
+        keyboard = None  # orders_sort_kbd
         next_state = None
     else:
         orders = session.query(Order).filter(Order.ddate == date)
@@ -257,8 +260,28 @@ def process_order_admin(bot, update, user_data):
     for order in user_data["selected_orders"]:
         if order.full_label == answer:
             break
-    inlinekeyboard = edit_order_ikbd if order.status != texts.order_status_completed else None
+    if order.status != texts.order_status_completed:
+        inlinekeyboard = edit_order_ikbd
+        user_data["selected_order"] = order
+    else:
+        inlinekeyboard = None
     ans(text=str(order), inlinekeyboard=inlinekeyboard)(bot, update)
+
+
+def change_order_status(bot, update, user_data):
+    answer = update.message.text
+    if answer not in flatten(order_status_kbd):
+        return ans(text=texts.status_prompt, keyboard=order_status_kbd)(bot, update)
+    else:
+        if answer == texts.main_menu_btn:
+            # this if statement isn't necessary
+            return ans(text=texts.in_main_menu, keyboard=main_kbd_admin)(bot, update)
+        else:
+            # perform status update
+            order = user_data["selected_order"]
+            order.status = answer
+            session.commit()
+            return ans(text=texts.status_updated, keyboard=main_kbd_admin, next_state="MAIN_MENU_A")(bot, update)
 
 
 def edit_admin(bot, update):
@@ -334,7 +357,7 @@ def order_action(bot, update, user_data):
     for order in user_orders:
         if order.timestamp.strftime(texts.dt_format) == answer:
             break
-    ans(text=str(order), keyboard=main_kbd_user)(bot, update)
+    return ans(text=str(order), keyboard=main_kbd_user, next_state="MAIN_MENU_U")(bot, update)
 
 
 def info_user(bot, update):
@@ -445,6 +468,8 @@ def inline(bot, update, user_data):
 
     elif act == "edit_order_status":
         bot.answerCallbackQuery(callback_query_id=cqid)
+        bot.sendMessage(uid, text=texts.status_prompt, reply_markup=kbd(order_status_kbd), parse_mode="HTML")
+        return "EDIT_STATUS"
 
 
 def error(bot, update, err):
@@ -518,9 +543,17 @@ def main():
 
         "DATE_INPUT_A": [MessageHandler(Filters.text, show_date_orders, pass_user_data=True)],
 
-        "ORDER_PROCESS_A": [MessageHandler(Filters.text, process_order_admin, pass_user_data=True)]
+        "ORDER_PROCESS_A": [MessageHandler(Filters.text, process_order_admin, pass_user_data=True)],
+
+        "EDIT_STATUS": [RegexHandler(texts.cancel_status_input_btn,
+                                     ans(text=texts.status_input_cancelled,
+                                         keyboard=main_kbd_admin, next_state="MAIN_MENU_A")),
+                        MessageHandler(Filters.text, change_order_status, pass_user_data=True)
+                        ],
 
     }
+
+    states["DATE_INPUT_A"] = states["ORDERS_SORT_A"] + states["DATE_INPUT_A"]
 
     for cat in flatten(catalog.categories_kbd):
         states["CATALOG_" + cat] = [RegexHandler(btn,

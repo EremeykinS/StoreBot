@@ -98,6 +98,9 @@ order_status_delivery = "доставляется"
 order_status_pickup = "ожидает в пункте самовывоза"
 order_status_completed = "завершен"
 
+cancel_status_input_btn = "Отменить изменение статуса"
+status_input_cancelled = "Изменение статуса заказа отменено"
+
 orders_sort = "Какие заказы отобразить?"
 
 active_orders_btn = "Незавершенные"
@@ -112,3 +115,7 @@ wrong_date_format = "Вы ввели некорректную дату. Прав
                     "Попробуйте еще раз."
 
 edit_order_status_btn = "Изменить статус"
+
+status_prompt = "Выберите новый статус для заказа"
+
+status_updated = "Статус заказа обновлен!"
