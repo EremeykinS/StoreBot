@@ -5,6 +5,7 @@ from collections import OrderedDict
 
 import telegram
 from telegram.ext import Updater, CommandHandler, ConversationHandler, MessageHandler, RegexHandler, Filters
+from telegram.contrib.botan import Botan
 from telegram import InlineKeyboardButton as ikb
 from telegram import InlineKeyboardMarkup as ik
 from sqlalchemy import create_engine
@@ -20,6 +21,9 @@ typing = telegram.ChatAction.TYPING
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger('StoreBot.' + __name__)
+
+# botan
+btrack = Botan(botan_token).track
 
 # keyboards
 send_contact_kbd = [[telegram.KeyboardButton(texts.send_contact, request_contact=True)]]
@@ -102,6 +106,7 @@ def saving_ans(text: str, name: str, keyboard=None, inlinekeyboard=None, next_st
 def start(bot, update, user_data):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
+    btrack(update.message, event_name="start-test-inline")
     # if the user is admin
     if uid == owner_id:
         text = texts.welcome_admin
@@ -281,6 +286,9 @@ def change_order_status(bot, update, user_data):
             order = user_data["selected_order"]
             order.status = answer
             session.commit()
+            # inform user
+            bot.sendMessage(order.uid, text=(texts.alarm_status_updated % (str(order.timestamp.strftime(texts.dt_format)), answer)), parse_mode="HTML")
+            # answer to admin
             return ans(text=texts.status_updated, keyboard=main_kbd_admin, next_state="MAIN_MENU_A")(bot, update)
 
 
