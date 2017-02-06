@@ -1,7 +1,9 @@
+import io
 import json
 import datetime
 import logging
 from collections import OrderedDict
+from functools import lru_cache
 
 import telegram
 from telegram.ext import Updater, CommandHandler, ConversationHandler, MessageHandler, RegexHandler, Filters
@@ -10,6 +12,8 @@ from telegram import InlineKeyboardButton as ikb
 from telegram import InlineKeyboardMarkup as ik
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+import matplotlib.pyplot as plt
+from matplotlib import rc
 
 import texts
 from config import *
@@ -37,6 +41,7 @@ pickup_points = [[point] for point in texts.pickup_point]
 orders_sort_kbd = [[texts.active_orders_btn], [texts.date_orders_btn], [texts.archive_orders_btn]]
 order_status_kbd = [[texts.default_order_status], [texts.order_status_delivery], [texts.order_status_pickup],
                     [texts.order_status_completed], [texts.cancel_status_input_btn]]
+stat_type_kbd = [[texts.static_stat_btn, texts.dynamic_stat_btn]]
 
 # inline keyboard for catalog
 catalog_ikbd = [[ikb(texts.prev_btn, callback_data="<"), ikb(texts.next_btn, callback_data=">")],
@@ -58,6 +63,10 @@ engine = create_engine('postgresql://%s:%s@%s:%s/%s' % (db_username, db_password
 Session = sessionmaker(bind=engine)
 session = Session()
 Base.metadata.create_all(engine)
+
+# matplotlib font settings
+font = {'family': 'DejaVu Serif', 'weight': 'normal', 'size': 24} # avail_font_names = [f.name for f in matplotlib.font_manager.fontManager.ttflist]
+rc('font', **font)
 
 
 def kbd(k):
@@ -298,10 +307,29 @@ def edit_admin(bot, update):
     bot.sendMessage(update.message.chat_id, text='edit', parse_mode="HTML", reply_markup=kbd(main_kbd_user))
 
 
+def pie(data, labels):
+    # TODO: cache results
+    colors = ['yellowgreen', 'gold', 'lightcoral', 'lightskyblue']
+    plt.pie(data, labels=labels, colors=colors, autopct='%1.1f%%', shadow=True, startangle=140)
+    plt.axis('equal')
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    plt.clf()
+    buf.seek(0)
+    return buf
+
+
 def stat_admin(bot, update):
-    uid = update.message.from_user.id
-    bot.sendChatAction(uid, action=typing)
-    bot.sendMessage(update.message.chat_id, text='stat', parse_mode="HTML", reply_markup=kbd(main_kbd_user))
+    days = 30
+    total_orders = session.query(Order).filter(Order.timestamp < datetime.datetime.now() - datetime.timedelta(days=days)).count() # '<' replace with '>'
+    completed_orders = session.query(Order).filter(Order.timestamp < datetime.datetime.now() - datetime.timedelta(days=days), Order.status != texts.order_status_completed).count() # '<' replace with '>'
+
+    labels = ['завершеные', 'незавершенные']
+    data = [total_orders-completed_orders, completed_orders]
+    chart = pie(data, labels)
+    bot.sendChatAction(owner_id, action=telegram.ChatAction.UPLOAD_PHOTO, timeout=10)
+    bot.sendPhoto(chat_id=owner_id, photo=chart)
+    chart.close()
 
 
 def info_admin(bot, update):
@@ -508,7 +536,7 @@ def main():
 
         "MAIN_MENU_A": [RegexHandler(texts.orders_btn_admin, orders_admin),
                         RegexHandler(texts.edit_btn_admin, edit_admin),
-                        RegexHandler(texts.stat_btn_admin, stat_admin),
+                        RegexHandler(texts.stat_btn_admin, ans(text=texts.stat_type, keyboard=stat_type_kbd, next_state=None)),
                         RegexHandler(texts.info_btn_admin, info_admin)],
 
         "MAIN_MENU_U": [RegexHandler(texts.catalog_btn_user, catalog_user),

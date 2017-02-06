@@ -121,3 +121,7 @@ status_prompt = "Выберите новый статус для заказа"
 status_updated = "Статус заказа обновлен!"
 
 alarm_status_updated = "Статус Вашего заказа от %s был обновлен! Новый статус: \"%s\""
+
+stat_type = "Выберите вид статистики"
+static_stat_btn = "статика"
+dynamic_stat_btn = "динамика"
