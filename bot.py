@@ -19,6 +19,7 @@ import texts
 from config import *
 from models import Base, User, Order, Catalog, Cart
 
+now = datetime.datetime.now
 # constant for sending 'typing...'
 typing = telegram.ChatAction.TYPING
 
@@ -42,6 +43,7 @@ orders_sort_kbd = [[texts.active_orders_btn], [texts.date_orders_btn], [texts.ar
 order_status_kbd = [[texts.default_order_status], [texts.order_status_delivery], [texts.order_status_pickup],
                     [texts.order_status_completed], [texts.cancel_status_input_btn]]
 stat_type_kbd = [[texts.static_stat_btn, texts.dynamic_stat_btn]]
+to_item_list_kbd = [[texts.to_item_list_btn]]
 
 # inline keyboard for catalog
 catalog_ikbd = [[ikb(texts.prev_btn, callback_data="<"), ikb(texts.next_btn, callback_data=">")],
@@ -115,7 +117,7 @@ def saving_ans(text: str, name: str, keyboard=None, inlinekeyboard=None, next_st
 def start(bot, update, user_data):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
-    btrack(update.message, event_name="start-test-inline")
+    # btrack(update.message, event_name="start-test-inline")
     # if the user is admin
     if uid == owner_id:
         text = texts.welcome_admin
@@ -130,6 +132,7 @@ def start(bot, update, user_data):
                 # we should save the user in user_data dict
                 from_user = update.message.from_user
                 user = User(tuid=uid, first_name=from_user.first_name, last_name=from_user.last_name)
+                user_data['user'] = user
                 # also save the user in DB
                 session.add(user)
                 session.commit()
@@ -160,15 +163,13 @@ def main_menu_user(bot, update, user_data):
 
 def got_contact(bot, update, user_data=None):
     uid = update.message.from_user.id
-    bot.sendChatAction(uid, action=typing)
     if user_data and update.message.contact:
         phone = update.message.contact.phone_number
         user_data['phone'] = phone
         user = session.query(User).filter_by(tuid=uid).scalar()
         user.phone = phone
         session.commit()
-    ans(text=texts.delivery_methods, keyboard=delivery_methods_kbd)(bot, update)
-    return "DELIVERY_U"
+    return ans(text=texts.delivery_methods, keyboard=delivery_methods_kbd, next_state="DELIVERY_U")(bot, update)
 
 
 def no_contact(bot, update):
@@ -307,30 +308,81 @@ def edit_admin(bot, update):
     bot.sendMessage(update.message.chat_id, text='edit', parse_mode="HTML", reply_markup=kbd(main_kbd_user))
 
 
-def pie(data, labels):
+def pie(data, labels, title=None):
     # TODO: cache results
-    colors = ['yellowgreen', 'gold', 'lightcoral', 'lightskyblue']
-    plt.pie(data, labels=labels, colors=colors, autopct='%1.1f%%', shadow=True, startangle=140)
+    colors = ['lightskyblue', 'gold', 'lightcoral', 'yellowgreen']
+    plt.xkcd()
+    patches, _, _ = plt.pie(data, colors=colors, autopct='%1.1f%%', shadow=False, startangle=140)
+    plt.legend(patches, labels, loc=(0.15, -0.30), prop={'family': 'Comic Sans MS'})
     plt.axis('equal')
+    if title:
+        plt.title(title, fontsize=24, position=(0.5, 1.1), family="Comic Sans MS")
     buf = io.BytesIO()
-    plt.savefig(buf, format='png')
+    plt.savefig(buf, format='png', bbox_inches='tight')
     plt.clf()
     buf.seek(0)
     return buf
 
 
-def stat_admin(bot, update):
+def bar(data, labels, title=None):
+    OY = data
+    OX = list(range(len(OY)))
+    width = .35
+    ind = OX
+    plt.xkcd()
+    plt.bar(ind, OY, width=width)
+    plt.xticks([i + width / 2 for i in ind], labels)
+    xlocs, xlabels = plt.xticks()
+    plt.setp(xlabels, rotation=90)
+    plt.ylim([0, max(data)+1])
+    if title:
+        plt.title(title, fontsize=24, position=(0.5, 1.1), family="Comic Sans MS")
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight')
+    plt.clf()
+    buf.seek(0)
+    return buf
+
+
+def static_stat_admin(bot, update):
     days = 30
-    total_orders = session.query(Order).filter(Order.timestamp < datetime.datetime.now() - datetime.timedelta(days=days)).count() # '<' replace with '>'
-    completed_orders = session.query(Order).filter(Order.timestamp < datetime.datetime.now() - datetime.timedelta(days=days), Order.status != texts.order_status_completed).count() # '<' replace with '>'
+    bot.sendChatAction(owner_id, action=telegram.ChatAction.UPLOAD_PHOTO, timeout=10)
+    t_now = now()
+    total_orders = session.query(Order).filter(Order.timestamp > t_now - datetime.timedelta(days=days)).count()
+    completed_orders = session.query(Order).\
+        filter(Order.timestamp > t_now - datetime.timedelta(days=days),
+               Order.status != texts.order_status_completed).count()
 
     labels = ['завершеные', 'незавершенные']
     data = [total_orders-completed_orders, completed_orders]
-    chart = pie(data, labels)
-    bot.sendChatAction(owner_id, action=telegram.ChatAction.UPLOAD_PHOTO, timeout=10)
+    chart = pie(data, labels, title=texts.pie_title % days)
     bot.sendPhoto(chat_id=owner_id, photo=chart)
     chart.close()
 
+
+def dynamic_stat_admin(bot, update):
+    bot.sendChatAction(owner_id, action=telegram.ChatAction.UPLOAD_PHOTO, timeout=10)
+    days = 30
+    gs = 5  # group size: 5 days in a group
+    n = int(days/gs)
+    t_now = now()
+    data = session.query(User.reg).filter(User.reg > t_now - datetime.timedelta(days=days)).all()
+    data = [d[0] for d in data]
+    data_dict = OrderedDict([(day, 0) for day in range(days)])
+    for reg_date in data:
+        dt = t_now - reg_date
+        data_dict[dt.days] += 1
+    grouped_data = OrderedDict([(g, 0) for g in range(n)])
+    for g in range(n):
+        grouped_data[g] = sum(data_dict[k] for k in range(g*gs, (g+1)*gs))
+    labels = []
+    for i in range(n):
+        d1 = t_now - datetime.timedelta((0+i)*gs)
+        d2 = d1 + datetime.timedelta(days=gs)
+        labels.append(d1.strftime("%d.%m-")+d2.strftime("%d.%m"))
+    labels.reverse()
+    data = list(reversed(grouped_data.values()))
+    bot.sendPhoto(chat_id=owner_id, photo=bar(data, labels, title=texts.new_users_plot_title))
 
 def info_admin(bot, update):
     uid = update.message.from_user.id
@@ -339,12 +391,17 @@ def info_admin(bot, update):
 
 
 def catalog_user(bot, update):
-    return ans(text=texts.select_category, keyboard=catalog.categories_kbd, next_state="CATALOG")(bot, update)
+    return ans(text=texts.select_category, keyboard=catalog.categories_kbd + [[texts.main_menu_btn]], next_state="CATALOG")(bot, update)
 
 
 def catalog_item(bot, update, user_data=None, text=None, inlinekeyboard=None, next_state=None, subcat=None):
     # TODO: Hide prev inline kbd
-    user_data["scroll"] = subcat.copy()
+    if subcat is not None:
+        user_data["scroll"] = subcat.copy()
+    else:
+        subcat = user_data["scroll"]
+    if text is None:
+        text = str(subcat[0])
     if inlinekeyboard is None:
         inlinekeyboard = catalog_ikbd
     return ans(text=text, inlinekeyboard=inlinekeyboard, next_state=next_state)(bot, update)
@@ -434,7 +491,8 @@ def inline(bot, update, user_data):
 
     elif act == 'img':
         bot.answerCallbackQuery(callback_query_id=cqid)
-        bot.sendPhoto(chat_id=chat_id, photo=scroll.get_current().img, caption=scroll.get_current().description)
+        cur = scroll.get_current()
+        bot.sendPhoto(chat_id=chat_id, photo=cur.img, caption=cur.description, reply_markup=kbd(to_item_list_kbd))
         # TODO: send the message with scrollable list again
         # TODO: decrease "stock" value
 
@@ -496,7 +554,8 @@ def inline(bot, update, user_data):
     elif act == "confirm_all":
         bot.answerCallbackQuery(callback_query_id=cqid)
         if "phone" not in user_data:
-            bot.sendMessage(uid, text=texts.ask_contact, parse_mode="HTML", reply_markup=kbd(send_contact_kbd))
+            bot.sendMessage(uid, text=texts.ask_contact, parse_mode="HTML",
+                            reply_markup=kbd(send_contact_kbd + [[texts.main_menu_btn]]))
             return "CHECK_CONTACT"
         else:
             bot.sendMessage(uid, text=texts.delivery_methods, reply_markup=kbd(delivery_methods_kbd), parse_mode="HTML")
@@ -532,12 +591,17 @@ def main():
 
     states = {
         "CHECK_CONTACT": [MessageHandler(Filters.contact, got_contact, pass_user_data=True),
+                          RegexHandler(texts.main_menu_btn,
+                                       ans(text=texts.main_menu_btn, keyboard=main_kbd_user, next_state="MAIN_MENU_U")),
                           MessageHandler(Filters.text, no_contact)],
 
         "MAIN_MENU_A": [RegexHandler(texts.orders_btn_admin, orders_admin),
                         RegexHandler(texts.edit_btn_admin, edit_admin),
-                        RegexHandler(texts.stat_btn_admin, ans(text=texts.stat_type, keyboard=stat_type_kbd, next_state=None)),
+                        RegexHandler(texts.stat_btn_admin, ans(text=texts.stat_type, keyboard=stat_type_kbd, next_state="STAT")),
                         RegexHandler(texts.info_btn_admin, info_admin)],
+
+        "STAT": [RegexHandler(texts.static_stat_btn, static_stat_admin),
+                 RegexHandler(texts.dynamic_stat_btn, dynamic_stat_admin)],
 
         "MAIN_MENU_U": [RegexHandler(texts.catalog_btn_user, catalog_user),
                         RegexHandler(texts.cart_btn_user, cart_user, pass_user_data=True),
@@ -545,7 +609,8 @@ def main():
                         RegexHandler(texts.info_btn_user, info_user)],
 
         "CATALOG": [
-            RegexHandler(btn, ans(text=texts.select_subcategory % btn, keyboard=catalog.subcat_kbd[btn],
+            RegexHandler(btn, ans(text=texts.select_subcategory % btn,
+                                  keyboard=catalog.subcat_kbd[btn] + [[texts.main_menu_btn]],
                                   next_state="CATALOG_" + btn))
             for btn in flatten(catalog.categories_kbd)],
 
@@ -600,9 +665,12 @@ def main():
                                     for btn in flatten(catalog.subcat_kbd[cat])]
 
     command_handlers = [CommandHandler('start', start, pass_user_data=True), ]
+    back_to_list_handler = [RegexHandler(texts.to_item_list_btn, catalog_item, pass_user_data=True)]
+    main_menu_handler = [RegexHandler(texts.main_menu_btn,
+                                       ans(text=texts.main_menu_btn, keyboard=main_kbd_user, next_state="MAIN_MENU_U"))]
 
     # inline buttons and slash-commands must be handled from any chat state
-    states = {k: v + command_handlers + [cqh] for k, v in states.items()}
+    states = {k: v + command_handlers + [cqh] + back_to_list_handler+main_menu_handler for k, v in states.items()}
 
     # Add conversation handler with the states
     conversation_handler = ConversationHandler(entry_points=command_handlers, states=states, fallbacks=[])

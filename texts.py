@@ -125,3 +125,9 @@ alarm_status_updated = "Статус Вашего заказа от %s был о
 stat_type = "Выберите вид статистики"
 static_stat_btn = "статика"
 dynamic_stat_btn = "динамика"
+
+to_item_list_btn = "Назад к списку товаров"
+
+pie_title = "Заказы за %s дней"
+
+new_users_plot_title = "Новые пользователи"

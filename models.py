@@ -17,6 +17,7 @@ now = datetime.now
 class User(Base):
     __tablename__ = "users"
     tuid = Column(BigInteger, primary_key=True)
+    reg = Column(DateTime, default=now)
     first_name = Column(String(127))
     last_name = Column(String(127))
     phone = Column(String(31))
