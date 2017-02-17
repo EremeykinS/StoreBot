@@ -79,37 +79,74 @@ def flatten(nl):
     return [item for sublist in nl for item in sublist]
 
 
+def correct_time(value):
+    try:
+        h, m = value.split(":")
+        result = datetime.time(int(h), int(m))
+    except ValueError:
+        result = False
+    finally:
+        return result
+
+
+def correct_date(value):
+    try:
+        d, m, y = value.split(".")
+        result = datetime.date(year=int(y), month=int(m), day=int(d))
+    except ValueError:
+        result = False
+    finally:
+        return result
+
+
 def ans(text, keyboard=None, inlinekeyboard=None, next_state=None):
     if keyboard:
         def answer_function(bot, update):
-            uid = update.message.from_user.id
+            try:
+                uid = update.message.from_user.id
+            except AttributeError:
+                uid = update.callback_query.from_user.id
             bot.sendChatAction(uid, action=typing)
             bot.sendMessage(uid, text=text, parse_mode="HTML", reply_markup=kbd(keyboard))
-            # print("going to next_state = " + str(next_state))
             return next_state
     elif inlinekeyboard:
         def answer_function(bot, update):
-            uid = update.message.from_user.id
+            try:
+                uid = update.message.from_user.id
+            except AttributeError:
+                uid = update.callback_query.from_user.id
             bot.sendChatAction(uid, action=typing)
             bot.sendMessage(uid, text=text, parse_mode="HTML",
                             reply_markup=ik(inlinekeyboard))
-            # print("going to next_state = " + str(next_state))
             return next_state
     else:
         def answer_function(bot, update):
-            uid = update.message.from_user.id
+            try:
+                uid = update.message.from_user.id
+            except AttributeError:
+                uid = update.callback_query.from_user.id
             bot.sendChatAction(uid, action=typing)
             bot.sendMessage(uid, text=text, parse_mode="HTML")
-            # print("going to next_state = " + str(next_state))
             return next_state
     return answer_function
 
 
-# TODO: validate user input
-def saving_ans(text: str, name: str, keyboard=None, inlinekeyboard=None, next_state=None):
+def saving_ans(text: str, name: str, keyboard=None, inlinekeyboard=None, next_state=None,
+               checker=lambda x: True, error_text=None):
     def answer_function(bot, update, user_data):
-        user_data[name] = update.message.text
-        return ans(text, keyboard=keyboard, inlinekeyboard=inlinekeyboard, next_state=next_state)(bot, update)
+        answer = update.message.text
+        if checker(answer):
+            user_data[name] = answer
+            txt = text
+            k = keyboard
+            ik = inlinekeyboard
+            n_s = next_state
+        else:
+            txt = error_text
+            k = None
+            ik = None
+            n_s = None
+        return ans(text=txt, keyboard=k, inlinekeyboard=ik, next_state=n_s)(bot, update)
 
     return answer_function
 
@@ -181,25 +218,33 @@ def no_contact(bot, update):
 
 def order_confirm(bot, update, user_data):
     answer = update.message.text
+    keyboard = main_kbd_user
+    next_state = "MAIN_MENU_U"
     # delivery:
     if "delivery_addr" in user_data:
-        user_data["delivery_time"] = answer
-        addr = user_data["delivery_addr"]
-        ddate = user_data["delivery_date"]
-        dtime = user_data["delivery_time"]
-        cart = user_data["cart"]
-        order_json = cart.json_repr()
-        new_order = Order(addr=addr, ddate=ddate, dtime=dtime, order=order_json)
-        user = user_data['user']
-        user.uorders.append(new_order)
-        session.commit()
-        # TODO: save delivery_addr and suggest it next time
-        user_data["prev_delivery_addr"].append(addr)
-        user_data["cart"] = Cart()
-        del user_data["delivery_addr"]
-        del user_data["delivery_date"]
-        del user_data["delivery_time"]
-        text = texts.delivery_confirmation % (addr, ddate, dtime, cart.total)
+        dtime = correct_time(answer)
+        if not dtime:
+            text = texts.wrong_time_format
+            keyboard = None
+            next_state = None
+        else:
+            user_data["delivery_time"] = dtime
+            addr = user_data["delivery_addr"]
+            ddate = user_data["delivery_date"]
+            # dtime = user_data["delivery_time"]
+            cart = user_data["cart"]
+            order_json = cart.json_repr()
+            new_order = Order(addr=addr, ddate=ddate, dtime=dtime, order=order_json)
+            user = user_data['user']
+            user.uorders.append(new_order)
+            session.commit()
+            # TODO: save delivery_addr and suggest it next time
+            user_data["prev_delivery_addr"].append(addr)
+            user_data["cart"] = Cart()
+            del user_data["delivery_addr"]
+            del user_data["delivery_date"]
+            del user_data["delivery_time"]
+            text = texts.delivery_confirmation % (addr, ddate, dtime, cart.total)
     # pickup:
     else:
         pickup_point = answer
@@ -211,8 +256,7 @@ def order_confirm(bot, update, user_data):
         session.commit()
         text = texts.pickup_confirmation % (answer, cart.total)
         user_data["cart"] = Cart()
-    ans(text=text, keyboard=main_kbd_user)(bot, update)
-    return "MAIN_MENU_U"
+    return ans(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
 
 
 def orders_admin(bot, update):
@@ -432,7 +476,7 @@ def orders_user(bot, update, user_data):
     if len(user_orders) > 0:
         user_orders.sort(key=lambda x: x.timestamp, reverse=True)
         user_data["user_orders"] = user_orders
-        keyboard = [[str(order.timestamp.strftime(texts.dt_format))] for order in user_orders]
+        keyboard = [[str(order.timestamp.strftime(texts.dt_format))] for order in user_orders] + [[texts.main_menu_btn]]
         text = texts.select_order
         next_state = "ORDERS_U"
     else:
@@ -493,7 +537,7 @@ def inline(bot, update, user_data):
         bot.answerCallbackQuery(callback_query_id=cqid)
         cur = scroll.get_current()
         bot.sendPhoto(chat_id=chat_id, photo=cur.img, caption=cur.description, reply_markup=kbd(to_item_list_kbd))
-        # TODO: send the message with scrollable list again
+        catalog_item(bot, update, user_data)
         # TODO: decrease "stock" value
 
     elif act == "to_cart":
@@ -591,8 +635,6 @@ def main():
 
     states = {
         "CHECK_CONTACT": [MessageHandler(Filters.contact, got_contact, pass_user_data=True),
-                          RegexHandler(texts.main_menu_btn,
-                                       ans(text=texts.main_menu_btn, keyboard=main_kbd_user, next_state="MAIN_MENU_U")),
                           MessageHandler(Filters.text, no_contact)],
 
         "MAIN_MENU_A": [RegexHandler(texts.orders_btn_admin, orders_admin),
@@ -615,9 +657,7 @@ def main():
             for btn in flatten(catalog.categories_kbd)],
 
         "TO_CART_DONE": [RegexHandler(texts.confirm_order_btn, cart_user, pass_user_data=True),
-                         RegexHandler(texts.to_cat_btn, catalog_user),
-                         RegexHandler(texts.main_menu_btn, lambda b, u: ans(
-                             text=texts.in_main_menu, keyboard=main_kbd_user, next_state="MAIN_MENU_U")(b, u))],
+                         RegexHandler(texts.to_cat_btn, catalog_user)],
 
         "DELIVERY_U": [RegexHandler(texts.delivery_carrier_btn, ans(text=texts.delivery_addr_input,
                                                                     next_state="DELIVERY_ADDR")),
@@ -630,7 +670,9 @@ def main():
                                                                   next_state="DELIVERY_DATE"), pass_user_data=True)],
 
         "DELIVERY_DATE": [MessageHandler(Filters.text, saving_ans(text=texts.delivery_time_input, name="delivery_date",
-                                                                  next_state="DELIVERY_TIME"), pass_user_data=True)],
+                                                                  next_state="DELIVERY_TIME", checker=correct_date,
+                                                                  error_text=texts.wrong_date_format),
+                                         pass_user_data=True)],
 
         "DELIVERY_TIME": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
 
@@ -670,7 +712,7 @@ def main():
                                        ans(text=texts.main_menu_btn, keyboard=main_kbd_user, next_state="MAIN_MENU_U"))]
 
     # inline buttons and slash-commands must be handled from any chat state
-    states = {k: v + command_handlers + [cqh] + back_to_list_handler+main_menu_handler for k, v in states.items()}
+    states = {k: main_menu_handler + command_handlers + [cqh] + back_to_list_handler + v for k, v in states.items()}
 
     # Add conversation handler with the states
     conversation_handler = ConversationHandler(entry_points=command_handlers, states=states, fallbacks=[])
