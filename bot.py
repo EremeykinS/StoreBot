@@ -344,7 +344,7 @@ def edit_admin(bot, update):
 
 def pie(data, labels, title=None):
     # TODO: cache results
-    colors = ['lightskyblue', 'gold', 'lightcoral', 'yellowgreen']
+    colors = ['lightgray', 'darkgray', 'lightcoral', 'yellowgreen']
     plt.xkcd()
     patches, _, _ = plt.pie(data, colors=colors, autopct='%1.1f%%', shadow=False, startangle=140)
     plt.legend(patches, labels, loc=(0.15, -0.30), prop={'family': 'Comic Sans MS'})
@@ -364,8 +364,8 @@ def bar(data, labels, title=None):
     width = .35
     ind = OX
     plt.xkcd()
-    plt.bar(ind, OY, width=width)
-    plt.xticks([i + width / 2 for i in ind], labels)
+    plt.bar(ind, OY, width=width, color="lightgray")
+    plt.xticks([i + width / 2 for i in ind], labels, family="Comic Sans MS")
     xlocs, xlabels = plt.xticks()
     plt.setp(xlabels, rotation=90)
     plt.ylim([0, max(data)+1])
