@@ -37,12 +37,13 @@ main_kbd_user = [[texts.catalog_btn_user, texts.cart_btn_user],
 main_kbd_admin = [[texts.orders_btn_admin, texts.edit_btn_admin],
                   [texts.stat_btn_admin, texts.info_btn_admin]]
 to_cart_kbd = [[texts.confirm_order_btn], [texts.to_cat_btn], [texts.main_menu_btn]]
-delivery_methods_kbd = [[texts.delivery_carrier_btn], [texts.delivery_pickup_btn]]
-pickup_points = [[point] for point in texts.pickup_point]
-orders_sort_kbd = [[texts.active_orders_btn], [texts.date_orders_btn], [texts.archive_orders_btn]]
+delivery_methods_kbd = [[texts.delivery_carrier_btn], [texts.delivery_pickup_btn], [texts.main_menu_btn]]
+pickup_points = [[point] for point in texts.pickup_point] + [[texts.main_menu_btn]]
+orders_sort_kbd = [[texts.active_orders_btn], [texts.date_orders_btn], [texts.archive_orders_btn],
+                   [texts.main_menu_btn]]
 order_status_kbd = [[texts.default_order_status], [texts.order_status_delivery], [texts.order_status_pickup],
                     [texts.order_status_completed], [texts.cancel_status_input_btn]]
-stat_type_kbd = [[texts.static_stat_btn, texts.dynamic_stat_btn]]
+stat_type_kbd = [[texts.static_stat_btn, texts.dynamic_stat_btn], [texts.main_menu_btn]]
 to_item_list_kbd = [[texts.to_item_list_btn]]
 
 # inline keyboard for catalog
@@ -254,9 +255,9 @@ def orders_admin(bot, update):
 def show_active_orders(bot, update, user_data):
     orders = session.query(Order).filter(Order.status != texts.order_status_completed)
     if orders.all():
-        user_data["selected_orders"] = orders
+        user_data["selected_orders"] = orders.all()
         text = texts.select_order
-        keyboard = [[order.full_label()] for order in orders]
+        keyboard = [[order.full_label()] for order in orders] + [[texts.main_menu_btn]]
         next_state = "ORDER_PROCESS_A"
     else:
         text = texts.no_selected_order
@@ -277,9 +278,9 @@ def show_date_orders(bot, update, user_data):
     else:
         orders = session.query(Order).filter(Order.ddate == date)
         if orders.all():
-            user_data["selected_orders"] = orders
+            user_data["selected_orders"] = orders.all()
             text = texts.select_order
-            keyboard = [[order.full_label()] for order in orders]
+            keyboard = [[order.full_label()] for order in orders] + [[texts.main_menu_btn]]
             next_state = "ORDER_PROCESS_A"
         else:
             text = texts.no_selected_order
@@ -291,9 +292,9 @@ def show_date_orders(bot, update, user_data):
 def show_archive(bot, update, user_data):
     orders = session.query(Order).filter(Order.status == texts.order_status_completed)
     if orders.all():
-        user_data["selected_orders"] = orders
+        user_data["selected_orders"] = orders.all()
         text = texts.select_order
-        keyboard = [[order.full_label()] for order in orders]
+        keyboard = [[order.full_label()] for order in orders] + [[texts.main_menu_btn]]
         next_state = "ORDER_PROCESS_A"
     else:
         text = texts.no_selected_order
@@ -337,7 +338,8 @@ def change_order_status(bot, update, user_data):
 def edit_admin(bot, update):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
-    bot.sendMessage(update.message.chat_id, text='edit', parse_mode="HTML", reply_markup=kbd(main_kbd_user))
+    bot.sendMessage(update.message.chat_id, text='Функция редактирования каталога пока недоступна', parse_mode="HTML",
+                    reply_markup=kbd(main_kbd_admin))
 
 
 def pie(data, labels, title=None):
@@ -420,11 +422,12 @@ def dynamic_stat_admin(bot, update):
 def info_admin(bot, update):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
-    bot.sendMessage(update.message.chat_id, text=texts.info_admin, parse_mode="HTML", reply_markup=kbd(main_kbd_user))
+    bot.sendMessage(update.message.chat_id, text=texts.info_admin, parse_mode="HTML", reply_markup=kbd(main_kbd_admin))
 
 
 def catalog_user(bot, update):
-    return ans(text=texts.select_category, keyboard=catalog.categories_kbd + [[texts.main_menu_btn]], next_state="CATALOG")(bot, update)
+    return ans(text=texts.select_category, keyboard=catalog.categories_kbd + [[texts.main_menu_btn]],
+               next_state="CATALOG_U")(bot, update)
 
 
 def catalog_item(bot, update, user_data=None, text=None, inlinekeyboard=None, next_state=None, subcat=None):
@@ -534,7 +537,7 @@ def inline(bot, update, user_data):
             bot.answerCallbackQuery(callback_query_id=cqid)
             cart += current
             bot.sendMessage(uid, text=texts.to_cart_done, parse_mode="HTML", reply_markup=kbd(to_cart_kbd))
-            return "TO_CART_DONE"
+            return "TO_CART_DONE_U"
         else:
             bot.answerCallbackQuery(text=texts.not_enough_in_stock, callback_query_id=cqid)
 
@@ -588,7 +591,7 @@ def inline(bot, update, user_data):
         if "phone" not in user_data:
             bot.sendMessage(uid, text=texts.ask_contact, parse_mode="HTML",
                             reply_markup=kbd(send_contact_kbd + [[texts.main_menu_btn]]))
-            return "CHECK_CONTACT"
+            return "CHECK_CONTACT_U"
         else:
             bot.sendMessage(uid, text=texts.delivery_methods, reply_markup=kbd(delivery_methods_kbd), parse_mode="HTML")
             return "DELIVERY_U"
@@ -596,7 +599,7 @@ def inline(bot, update, user_data):
     elif act == "edit_order_status":
         bot.answerCallbackQuery(callback_query_id=cqid)
         bot.sendMessage(uid, text=texts.status_prompt, reply_markup=kbd(order_status_kbd), parse_mode="HTML")
-        return "EDIT_STATUS"
+        return "EDIT_STATUS_A"
 
 
 def error(bot, update, err):
@@ -628,49 +631,52 @@ def main():
     cqh = telegram.ext.CallbackQueryHandler(inline, pass_user_data=True)
 
     states = {
-        "CHECK_CONTACT": [MessageHandler(Filters.contact, got_contact, pass_user_data=True),
-                          MessageHandler(Filters.text, no_contact)],
+        "CHECK_CONTACT_U": [MessageHandler(Filters.contact, got_contact, pass_user_data=True),
+                            MessageHandler(Filters.text, no_contact)],
 
         "MAIN_MENU_A": [RegexHandler(texts.orders_btn_admin, orders_admin),
                         RegexHandler(texts.edit_btn_admin, edit_admin),
-                        RegexHandler(texts.stat_btn_admin, ans(text=texts.stat_type, keyboard=stat_type_kbd, next_state="STAT")),
+                        RegexHandler(texts.stat_btn_admin,
+                                     ans(text=texts.stat_type, keyboard=stat_type_kbd, next_state="STAT_A")),
                         RegexHandler(texts.info_btn_admin, info_admin)],
 
-        "STAT": [RegexHandler(texts.static_stat_btn, static_stat_admin),
-                 RegexHandler(texts.dynamic_stat_btn, dynamic_stat_admin)],
+        "STAT_A": [RegexHandler(texts.static_stat_btn, static_stat_admin),
+                   RegexHandler(texts.dynamic_stat_btn, dynamic_stat_admin)],
 
         "MAIN_MENU_U": [RegexHandler(texts.catalog_btn_user, catalog_user),
                         RegexHandler(texts.cart_btn_user, cart_user, pass_user_data=True),
                         RegexHandler(texts.orders_btn_user, orders_user, pass_user_data=True),
                         RegexHandler(texts.info_btn_user, info_user)],
 
-        "CATALOG": [
+        "CATALOG_U": [
             RegexHandler(btn, ans(text=texts.select_subcategory % btn,
                                   keyboard=catalog.subcat_kbd[btn] + [[texts.main_menu_btn]],
-                                  next_state="CATALOG_" + btn))
+                                  next_state="CATALOG_" + btn + "_U"))
             for btn in flatten(catalog.categories_kbd)],
 
-        "TO_CART_DONE": [RegexHandler(texts.confirm_order_btn, cart_user, pass_user_data=True),
-                         RegexHandler(texts.to_cat_btn, catalog_user)],
+        "TO_CART_DONE_U": [RegexHandler(texts.confirm_order_btn, cart_user, pass_user_data=True),
+                           RegexHandler(texts.to_cat_btn, catalog_user)],
 
         "DELIVERY_U": [RegexHandler(texts.delivery_carrier_btn, ans(text=texts.delivery_addr_input,
-                                                                    next_state="DELIVERY_ADDR")),
+                                                                    next_state="DELIVERY_ADDR_U")),
                        RegexHandler(texts.delivery_pickup_btn, ans(text=texts.delivery_pickup_input,
                                                                    keyboard=pickup_points,
-                                                                   next_state="PICKUP_POINT")),
+                                                                   next_state="PICKUP_POINT_U")),
                        ],
 
-        "DELIVERY_ADDR": [MessageHandler(Filters.text, saving_ans(text=texts.delivery_date_input, name="delivery_addr",
-                                                                  next_state="DELIVERY_DATE"), pass_user_data=True)],
+        "DELIVERY_ADDR_U": [
+            MessageHandler(Filters.text, saving_ans(text=texts.delivery_date_input, name="delivery_addr",
+                                                    next_state="DELIVERY_DATE_U"), pass_user_data=True)],
 
-        "DELIVERY_DATE": [MessageHandler(Filters.text, saving_ans(text=texts.delivery_time_input, name="delivery_date",
-                                                                  next_state="DELIVERY_TIME", checker=correct_date,
-                                                                  error_text=texts.wrong_date_format),
-                                         pass_user_data=True)],
+        "DELIVERY_DATE_U": [
+            MessageHandler(Filters.text, saving_ans(text=texts.delivery_time_input, name="delivery_date",
+                                                    next_state="DELIVERY_TIME_U", checker=correct_date,
+                                                    error_text=texts.wrong_date_format),
+                           pass_user_data=True)],
 
-        "DELIVERY_TIME": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
+        "DELIVERY_TIME_U": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
 
-        "PICKUP_POINT": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
+        "PICKUP_POINT_U": [MessageHandler(Filters.text, order_confirm, pass_user_data=True)],
 
         "ORDERS_U": [MessageHandler(Filters.text, order_action, pass_user_data=True)],
 
@@ -682,31 +688,37 @@ def main():
 
         "ORDER_PROCESS_A": [MessageHandler(Filters.text, process_order_admin, pass_user_data=True)],
 
-        "EDIT_STATUS": [RegexHandler(texts.cancel_status_input_btn,
-                                     ans(text=texts.status_input_cancelled,
+        "EDIT_STATUS_A": [RegexHandler(texts.cancel_status_input_btn,
+                                       ans(text=texts.status_input_cancelled,
                                          keyboard=main_kbd_admin, next_state="MAIN_MENU_A")),
-                        MessageHandler(Filters.text, change_order_status, pass_user_data=True)
-                        ],
+                          MessageHandler(Filters.text, change_order_status, pass_user_data=True)
+                          ],
 
     }
 
     states["DATE_INPUT_A"] = states["ORDERS_SORT_A"] + states["DATE_INPUT_A"]
 
     for cat in flatten(catalog.categories_kbd):
-        states["CATALOG_" + cat] = [RegexHandler(btn,
-                                                 lambda bot, update, user_data, cat=cat, btn=btn:
-                                                 catalog_item(bot, update, user_data=user_data,
-                                                              text=str(catalog[cat][btn][0]), subcat=catalog[cat][btn]),
-                                                 pass_user_data=True)
-                                    for btn in flatten(catalog.subcat_kbd[cat])]
+        states["CATALOG_" + cat + "_U"] = [RegexHandler(btn,
+                                                        lambda bot, update, user_data, cat=cat, btn=btn:
+                                                        catalog_item(bot, update, user_data=user_data,
+                                                                     text=str(catalog[cat][btn][0]),
+                                                                     subcat=catalog[cat][btn]),
+                                                        pass_user_data=True)
+                                           for btn in flatten(catalog.subcat_kbd[cat])]
 
     command_handlers = [CommandHandler('start', start, pass_user_data=True), ]
     back_to_list_handler = [RegexHandler(texts.to_item_list_btn, catalog_item, pass_user_data=True)]
-    main_menu_handler = [RegexHandler(texts.main_menu_btn,
-                                       ans(text=texts.main_menu_btn, keyboard=main_kbd_user, next_state="MAIN_MENU_U"))]
+    main_menu_u_handler = [RegexHandler(texts.main_menu_btn,
+                                        ans(text=texts.main_menu_btn, keyboard=main_kbd_user,
+                                            next_state="MAIN_MENU_U"))]
+    main_menu_a_handler = [RegexHandler(texts.main_menu_btn,
+                                        ans(text=texts.main_menu_btn, keyboard=main_kbd_admin,
+                                            next_state="MAIN_MENU_A"))]
 
     # inline buttons and slash-commands must be handled from any chat state
-    states = {k: main_menu_handler + command_handlers + [cqh] + back_to_list_handler + v for k, v in states.items()}
+    states = {k: (main_menu_u_handler + command_handlers + [cqh] + back_to_list_handler + v if k.endswith("_U") else
+                  main_menu_a_handler + command_handlers + [cqh] + v) for k, v in states.items()}
 
     # Add conversation handler with the states
     conversation_handler = ConversationHandler(entry_points=command_handlers, states=states, fallbacks=[])
