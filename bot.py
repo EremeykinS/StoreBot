@@ -163,21 +163,15 @@ def start(bot, update, user_data):
     # if the user is an ordinary user (is not admin)
     else:
         # if user is not saved in user_data dict
-        if 'user' not in user_data:
+        if 'user' not in user_data: # useless if statement? now we don't save user in the dict
             # and the user is not saved in DB
             if session.query(User.tuid).filter_by(tuid=uid).scalar() is None:
                 # we should save the user in user_data dict
                 from_user = update.message.from_user
                 user = User(tuid=uid, first_name=from_user.first_name, last_name=from_user.last_name)
-                user_data['user'] = user
                 # also save the user in DB
                 session.add(user)
                 session.commit()
-            # but if the user is saved in DB
-            else:
-                # we should load the user to user_data dict
-                user = session.query(User).filter_by(tuid=uid).scalar()
-                user_data['user'] = user
             # create an empty cart for the user
             user_data["cart"] = Cart()
             user_data["prev_delivery_addr"] = []
@@ -210,6 +204,7 @@ def no_contact(bot, update):
 
 
 def order_confirm(bot, update, user_data):
+    uid = update.message.from_user.id
     answer = update.message.text
     keyboard = main_kbd_user
     next_state = "MAIN_MENU_U"
@@ -228,7 +223,7 @@ def order_confirm(bot, update, user_data):
             cart = user_data["cart"]
             order_json = cart.json_repr()
             new_order = Order(addr=addr, ddate=ddate, dtime=dtime, order=order_json)
-            user = user_data['user']
+            user = session.query(User).filter_by(tuid=uid).scalar()
             user.uorders.append(new_order)
             session.commit()
             # TODO: save delivery_addr and suggest it next time
@@ -244,7 +239,7 @@ def order_confirm(bot, update, user_data):
         cart = user_data["cart"]
         order_json = cart.json_repr()
         new_order = Order(pickup=pickup_point, order=order_json)
-        user = user_data['user']
+        user = session.query(User).filter_by(tuid=uid).scalar()
         user.uorders.append(new_order)
         session.commit()
         text = texts.pickup_confirmation % (answer, cart.total)
@@ -530,8 +525,7 @@ def inline(bot, update, user_data):
     elif act == 'img':
         bot.answerCallbackQuery(callback_query_id=cqid)
         cur = scroll.get_current()
-        bot.sendPhoto(chat_id=chat_id, photo=cur.img, caption=cur.description, reply_markup=kbd(to_item_list_kbd))
-        catalog_item(bot, update, user_data)
+        bot.sendPhoto(chat_id=chat_id, photo=cur.img, caption=cur.name, reply_markup=kbd(to_item_list_kbd))
         # TODO: decrease "stock" value
 
     elif act == "to_cart":
@@ -624,14 +618,6 @@ def load_state():
 def save_state(conversations, user_data):
     with open(session_file, mode='wb') as cf:
         pickle.dump((conversations, user_data), cf)
-
-
-def load_data():
-    pass
-
-
-def save_data():
-    pass
 
 
 def main():

@@ -49,7 +49,7 @@ class Order(Base):
         content = ""
         _order = json.loads(self.order, object_pairs_hook=dict)
         for e in _order:
-            content += e['description'] + " (%d), " % e['q']
+            content += e['name'] + " (%d), " % e['q']
         total = sum(e['price']*e['q'] for e in _order)
         return texts.order_info % (content, total, self.status, self.upd.strftime(texts.dt_format))
 
@@ -76,7 +76,7 @@ class Entity:
         return self._dict == other._dict
 
     def __str__(self):
-        return texts.entity % (self.description, self.stock, self.price)
+        return texts.entity % (self.name, self.description, self.stock, self.price)
 
     def __repr__(self):
         return type(self).__name__ + "(" + (", ".join("%s='%s'" % (k, v) for k, v in self._dict.items())) + ")"
@@ -171,7 +171,7 @@ class Cart:
                     del self.items[product]
 
     def str_repr(self):
-        return [str(i + 1) + ". " + (texts.cart_items % (p.description, q, p.price, p.price * q))
+        return [str(i + 1) + ". " + (texts.cart_items % (p.name, q, p.price, p.price * q))
                 for i, (p, q) in enumerate(self.items.items())]
 
     def json_repr(self):

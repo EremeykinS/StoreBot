@@ -1,85 +1,97 @@
 {
-    "канцтовары": {
-        "бумага": [
+    "Горные лыжи": {
+        "Фрирайд": [
             {
                 "stock": 40,
-                "img": "123123",
-                "description": "лист формата А1",
-                "price": 14
+                "img": "AgADAgADr6cxG4EFYElc2aVSMrjf-ew5Sw0ABLrNYsNpi8Ug0HsFAAEC",
+                "name": "Горные лыжи Volkl Kendo",
+                "description": "<b>УПРАВЛЯЕМОСТЬ</b>\nПрогиб Tip & Tal Rocker дает маневренность в пушистом снегу и надежный контроль на укатанной трассе.\n\n<b>СТАБИЛЬНОСТЬ</b>\nДеревянный сердечник Multi Layer Woodcore усилен титаналом.",
+                "price": 20000
             },
             {
                 "stock": 61,
-                "img": "12ыв3",
-                "description": "лист формата А2",
-                "price": 8
+                "img": "AgADAgADtKcxG4EFYElQXm66NTgYsu4MSw0ABFNItbBdv2KqfmoFAAEC",
+                "name": "Горные лыжи Volkl",
+                "description": "<b>ПЛАВУЧЕСТЬ</b>\nТалия 117 мм, прогиб Tip & Tail Rocker, форма Directional.\n\n<b>УПРАВЛЯЕМОСТЬ</b>\nДеревянный сердечник Multi Layer Woodcore и усиление титаналом делают лыжи стабильными и отзывчивыми.\n\n<b>ЛЕГКОСТЬ</b>\nКарбоновые струны придают лыжам торсионную жесткость без увеличения веса.",
+                "price": 25000
             },
             {
                 "stock": 84,
-                "img": "12sdыв3",
-                "description": "лист формата А3",
-                "price": 4
+                "img": "AgADAgADq6cxG4EFYEkd19Bomef8En5Mtw0ABMfijOwaU47r0FgAAgI",
+                "name": "Горные лыжи Atomic Backland Bent Chetler Muco",
+                "description": "<b>ПЛАВУЧЕСТЬ</b>\nHRZN - сочетание боковых стенок ABS и поперечного рокера увеличивает площадь носка и пятки на 10%. Носок меньше рыскает и стабильнее идет по снегу в самом непредсказуемом состоянии.\n\n<b>ЛЕГКОСТЬ</b>\nСделанный из тополя сердечник позволяет оптимизировать вес лыж, при этом сохраняя их способность идти стабильно и амортизировать удары. Ультра-легкие вставки из карбона проходят по всей длине лыжи подобно стабилизирующему хребту. Благодаря этому лыжи отличаются прекрасной подвижностью и цепкостью кантов.\n\n<b>АМОРТИЗАЦИЯ</b>\nСпециальная конструкция боковых стенок Step Down Sidewall 2 для упругости и амортизации ударов.",
+                "price": 25000
             },
             {
-                "stock": 1254,
-                "img": "12sddasыв3",
-                "description": "лист формата А4",
-                "price": 2
+                "stock": 54,
+                "img": "AgADAgADsacxG4EFYEmsEqnLwYiy3nxbtw0ABO2UAAHQRcMU2o1aAAIC",
+                "name": "Горные лыжи Volkl V-Werks Katana",
+                "description": "<b>ЛЕГКОСТЬ</b>\nОблегченный деревянный сердечник Multilayer Woodcore Xtralight. Новая конструкция 3D Ringe - утонченные зоны вдоль канта, более толстая центральная часть - позволила значительно снизить вес лыжи и уменьшить момент инерции, сохранив при этом жесткость и отзывчивость.\n\n<b>ПЛАВУЧЕСТЬ</b>\nПрогиб Full Rocker с равномерно приподнятыми носом и хвостом добавляет лыжам маневренности на мягком снегу и обеспечивает хорошее всплывание.\n\n<b>СКОРОСТЬ</b>\nСкользящая поверхность уровня Кубка мира P-Tex 4501.",
+                "price": 45000
             }
         ],
-        "другое": [
+        "Фристайл": [
             {
                 "stock": 45,
-                "img": "18asыв3",
-                "description": "ручка обычная",
-                "price": 2
+                "img": "AgADAgADsKcxG4EFYEn2nzs7dUxeHXo4Sw0ABA8FPKPW6UmUw3wFAAEC",
+                "name": "Горные лыжи Volkl Alley",
+                "description": "<b>ПОДХОДЯТ ДЛЯ ТРЮКОВ</b>\nСимметричная геометрия Twintip делает лыжи прекрасным вариантом для трюков.\n\n<b>ОТЗЫВЧИВОСТЬ</b>\nДеревянный сердечник Multi Layer Woodcore",
+                "price": 10000
             },
             {
                 "stock": 6,
-                "img": "18asй3",
-                "description": "ручка Илитная",
-                "price": 222
+                "img": "AgADAgADracxG4EFYEkJn8Ocdx0F_gESSw0ABCwr5eUGuB0NmmUFAAEC",
+                "name": "Горные лыжи Volkl Wall",
+                "description": "<b>ПОДХОДЯТ ДЛЯ ТРЮКОВ</b>\nБлагодаря геометрии Twintip, которая позволяет кататься в своей стойке и в свиче, и прогибу Full Camber лыжи отлично подходят для трюков.\n\n<b>ОТЗЫВЧИВОСТЬ</b>\nДеревянный сердечник с усилением карбоном.\n\n<b>СКОРОСТЬ</b>\nСупербыстрая скользящая поверхность P-Tex 4501.",
+                "price": 16000
             }
         ]
     },
-    "техника": {
-        "электроника": [
+    "Горнолыжные палки": {
+        "Взрослые": [
             {
                 "stock": 4,
-                "img": "zx2134",
-                "description": "ноутбук Apple",
-                "price": 98000
+                "img": "AgADAgADqqcxG4EFYEnmzyy1koqvvadatw0ABEbE2uG1WNTr9lgAAgI",
+                "name": "Палки горнолыжные Volkl",
+                "description": "<b>ПЕРЕДАЧА ЭНЕРГИИ</b>\nНаконечник подходит для всех типов снега.\n\n<b>КОМФОРТ</b>\nУдобная эргономичная ручка гарантирует комфорт во время катания.",
+                "price": 850
             },
             {
                 "stock": 14,
-                "img": "zx18c3",
-                "description": "ноутбук HP",
-                "price": 68000
+                "img": "AgADAgADtacxG4EFYEminmFCr2uQwtA5tw0ABJVfU5hm_NB_2FkAAgI",
+                "name": "Палки горнолыжные Atomic AMT",
+                "description": "Алюминиевые палки с отличными характеристиками, подходят к большинству моделей лыж коллекции Atomic.",
+                "price": 1400
             },
             {
                 "stock": 2,
-                "img": "z2x12c12",
-                "description": "Asus Zenfone 2 Lazer ZE500KL 32Gb",
-                "price": 10400
+                "img": "AgADAgADsqcxG4EFYEmye09o8f16qJhXtw0ABBxWjNfa-H-vhlwAAgI",
+                "name": "Палки горнолыжные женские Salomon Northpole Lady",
+                "description": "<b>ЛЕГКОСТЬ</b>\nНизкий вес палок обеспечит дополнительный комфорт во время катания.\n\n<b>ПРОЧНОСТЬ</b>\nМодель выполнена из прочного алюминия.",
+                "price": 1600
             }
         ],
-        "другое": [
+        "Детские": [
             {
                 "stock": 1,
-                "img": "AgADAgADsKcxGyxIYw4X32kD8a1qlm7pgQ0ABJK-g33nE0X9QNEBAAEC",
-                "description": "непонятное барахло",
-                "price": 12
+                "img": "AgADAgADrqcxG4EFYElV5TpwYy4hbSJHtw0ABEtWtweI-Sq9v1oAAgI",
+                "name": "Палки горнолыжные детские Volkl Phantastick",
+                "description": "Легкие, прочные палки для детей. Выполнены из алюминиевого сплава. Эргономичная ручка рассчитана на удобный и надежный хват. Широкий темляк. Наконечник подходит для всех типов снега.",
+                "price": 550
             },
             {
                 "stock": 2,
-                "img": "AgADAgADr6cxGyxIYw5oN2_-zF3n2toySw0ABOJFXr2C_-UpziABAAEC",
-                "description": "гитара",
-                "price": 11200
+                "img": "AgADAgADs6cxG4EFYEmYEpelZRBYbcsvSw0ABA2ket5Z6RIcln4FAAEC",
+                "name": "Палки горнолыжные детские Volkl Speedstick",
+                "description": "Легкие, прочные палки для детей. Выполнены из алюминиевого сплава. Эргономичная ручка рассчитана на удобный и надежный хват. Широкий темляк. Наконечник подходит для всех типов снега.",
+                "price": 1100
             },
             {
                 "stock": 13,
-                "img": "AgADAgADrqcxGyxIYw7j2w6Rn8hu6p8JSw0ABM0EYQAB_vdmbtgUAQABAg",
-                "description": "крабовое мясо",
-                "price": 132
+                "img": "AgADAgADrKcxG4EFYElQzFgBm6YNZGlBtw0ABMa0xvDdbeDAPFoAAgI",
+                "name": "Палки горнолыжные детские Fischer RC4 WC GS",
+                "description": "<b>ОСОБАЯ ФОРМА</b>\nСпециальная изогнутая форма для оптимальной работы на трассах гигантского слалома.\n\n<b>ЛЕГКОСТЬ</b>\nДревко выполнено из алюминия.",
+                "price": 1900
             }
         ]
     }
