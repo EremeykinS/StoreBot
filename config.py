@@ -4,6 +4,8 @@ telegram_token = 'test-token'  # test
 
 botan_token = "botan-token"
 
+session_file = 'session.bin'
+
 db_username = "test_user"
 db_password = "test_password"
 db_host = "localhost"

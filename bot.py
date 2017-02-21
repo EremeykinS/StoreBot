@@ -1,13 +1,13 @@
 import io
 import json
-import datetime
+import pickle
 import logging
+import datetime
 from collections import OrderedDict
-from functools import lru_cache
 
 import telegram
 from telegram.ext import Updater, CommandHandler, ConversationHandler, MessageHandler, RegexHandler, Filters
-from telegram.contrib.botan import Botan
+# from telegram.contrib.botan import Botan
 from telegram import InlineKeyboardButton as ikb
 from telegram import InlineKeyboardMarkup as ik
 from sqlalchemy import create_engine
@@ -28,7 +28,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger('StoreBot.' + __name__)
 
 # botan
-btrack = Botan(botan_token).track
+# btrack = Botan(botan_token).track
 
 # keyboards
 send_contact_kbd = [[telegram.KeyboardButton(texts.send_contact, request_contact=True)]]
@@ -189,13 +189,6 @@ def start(bot, update, user_data):
         keyboard = main_kbd_user
         next_state = "MAIN_MENU_U"
     return ans(text=text, keyboard=keyboard, next_state=next_state)(bot, update)
-
-
-def main_menu_user(bot, update, user_data):
-    uid = update.message.from_user.id
-    bot.sendChatAction(uid, action=typing)
-    bot.sendMessage(update.message.chat_id, text=texts.contact_ok, parse_mode="HTML", reply_markup=kbd(main_kbd_user))
-    return "MAIN_MENU_U"
 
 
 def got_contact(bot, update, user_data=None):
@@ -428,6 +421,7 @@ def dynamic_stat_admin(bot, update):
     data = list(reversed(grouped_data.values()))
     bot.sendPhoto(chat_id=owner_id, photo=bar(data, labels, title=texts.new_users_plot_title))
 
+
 def info_admin(bot, update):
     uid = update.message.from_user.id
     bot.sendChatAction(uid, action=typing)
@@ -615,6 +609,23 @@ def error(bot, update, err):
     logger.warn('Update "%s" caused error "%s"' % (update, err))
 
 
+def load_state():
+    try:
+        sf = open(session_file, mode='rb')
+    except IOError:
+        from collections import defaultdict
+        return dict(), defaultdict(dict)
+    else:
+        conversations, user_data = pickle.load(sf)
+        sf.close()
+        return conversations, user_data
+
+
+def save_state(conversations, user_data):
+    with open(session_file, mode='wb') as cf:
+        pickle.dump((conversations, user_data), cf)
+
+
 def load_data():
     pass
 
@@ -624,12 +635,9 @@ def save_data():
 
 
 def main():
-    # Create the EventHandler and pass it your bot's token.
     updater = Updater(telegram_token)
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
-
-    # catalog = load_data()
 
     cqh = telegram.ext.CallbackQueryHandler(inline, pass_user_data=True)
 
@@ -717,8 +725,8 @@ def main():
     # Add conversation handler with the states
     conversation_handler = ConversationHandler(entry_points=command_handlers, states=states, fallbacks=[])
 
-    # загрузка данных
-    # load_data()
+    # load user data and conversations states from file
+    conversation_handler.conversations, dp.user_data = load_state()
     dp.add_handler(conversation_handler)
 
     # log all errors
@@ -732,9 +740,8 @@ def main():
     # start_polling() is non-blocking and will stop the bot gracefully.
     updater.idle()
 
-    # сохранение данных
-    save_data()
-    # pickle.dump((chat, conversation_handler.conversations), open(conversations_file, mode='wb'))
+    # save user data and conversations states to file
+    save_state(conversation_handler.conversations, dp.user_data)
 
 
 if __name__ == '__main__':
